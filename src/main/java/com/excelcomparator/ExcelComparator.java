@@ -433,9 +433,9 @@ public class ExcelComparator extends JFrame {
 
 class ResultCellRenderer extends DefaultTableCellRenderer {
     private final ComparisonResult result;
-    private final ExcelData data1, data2;
+    private final ExcelUtil.ExcelData data1, data2;
 
-    public ResultCellRenderer(ComparisonResult result, ExcelData data1, ExcelData data2) {
+    public ResultCellRenderer(ComparisonResult result, ExcelUtil.ExcelData data1, ExcelUtil.ExcelData data2) {
         this.result = result;
         this.data1 = data1;
         this.data2 = data2;
