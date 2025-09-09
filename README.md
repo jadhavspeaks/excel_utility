@@ -9,7 +9,7 @@ A powerful and easy-to-use desktop application built in Java Swing for comparing
 -   **Load Excel Files**: Supports both `.xls` and `.xlsx` file formats.
 -   **Multi-Level Header Support**: Can parse headers that span multiple rows, correctly interpreting merged cells to form descriptive column names.
 -   **Data Preview**: Shows a preview of the first 10 rows of each loaded file.
--   **Normalization (Un-pivot) Mode**: A powerful feature to transform wide-format data into a standard row-based format before comparison. This is ideal for files where columns represent entities (like products or reports) and cells contain checkmarks or values.
+-   **Automated Normalization**: A powerful feature to automatically detect and transform wide-format data into a standard row-based format. It identifies top-level merged headers and un-pivots the columns beneath them into "Dimension" and "Applicable" rows, making complex cross-tab structures comparable.
 -   **Flexible Key Mapping**: Allows users to define one or more columns to use as a composite key for matching rows between the two files.
 -   **Customizable Comparison**:
     -   **Column-level comparison**: Highlights specific cells that have different values in matched rows.
@@ -53,11 +53,9 @@ Alternatively, you can package the application into a single executable JAR file
 1.  **Load Files**: Click "Choose File 1" and "Choose File 2" to load the Excel files you want to compare.
 2.  **Set Header Rows**: Use the "Headers" spinner to specify how many rows make up the column titles. The tool can handle merged cells in the header.
 3.  **Select Sheets**: Choose the correct sheet from the dropdown menu for each file.
-4.  **Use Normalization Mode (Optional)**:
-    *   If one of your files is in a "wide" format (e.g., products listed across columns), check the "Enable Normalization" box for that file.
-    *   The Normalization panel will appear. Select the columns that are your main identifiers (e.g., `CDE Name`, `Attribute`).
-    *   Select the columns that you want to un-pivot (e.g., `Product A`, `Product B`, ...).
-    *   Click "Reload with Normalization Settings" to see a preview of the transformed data.
+4.  **Use Automated Normalization (Optional)**:
+    *   If your file uses a wide-format structure (e.g., products or attributes spread across columns under a merged header), simply check the **Enable Automated Normalization** box.
+    *   The application will automatically transform the data, and the preview table will update instantly to show the normalized (long-format) data.
 5.  **Map Key Columns**: Use the dropdown menus under "Map Key Columns" to select the columns that uniquely identify a row. Click "+ Add Key" if you need to use a composite key.
 6.  **Set Options**: Check or uncheck the comparison options as needed.
 7.  **Run Comparison**: Click the "Run Comparison" button.

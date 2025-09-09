@@ -113,40 +113,91 @@ public class ExcelUtil {
         return new ExcelData(headers, data);
     }
 
-    public static ExcelData readAndNormalize(File file, String sheetName, int headerRows, NormalizationConfig config) throws IOException {
+    public static ExcelData readAndAutoNormalize(File file, String sheetName, int headerRows) throws IOException {
+        // First, get the raw data and headers
         ExcelData rawData = readExcel(file, sheetName, headerRows, -1);
+        List<String> originalHeaders = rawData.getHeaders();
+        List<List<Object>> originalData = rawData.getData();
 
-        List<String> newHeaders = new ArrayList<>(config.getIdentifierColumns());
-        newHeaders.add(config.getNewCategoryColumnName());
-        newHeaders.add(config.getNewValueColumnName());
+        // --- Automated Header Analysis ---
+        List<String> identifierColumns = new ArrayList<>();
+        List<String> valueColumns = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(file)) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            if (sheet == null) {
+                throw new IOException("Sheet '" + sheetName + "' not found.");
+            }
+
+            boolean[] isValueColumn = new boolean[originalHeaders.size()];
+
+            if (headerRows > 0) {
+                for (CellRangeAddress region : sheet.getMergedRegions()) {
+                    if (region.getLastRow() < headerRows) {
+                        if (region.getFirstColumn() != region.getLastColumn()) {
+                            for (int i = region.getFirstColumn(); i <= region.getLastColumn(); i++) {
+                                if (i < isValueColumn.length) {
+                                    isValueColumn[i] = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < originalHeaders.size(); i++) {
+                if (isValueColumn[i]) {
+                    valueColumns.add(originalHeaders.get(i));
+                } else {
+                    identifierColumns.add(originalHeaders.get(i));
+                }
+            }
+        } catch (Exception e) {
+            throw new IOException("Failed during header analysis: " + e.getMessage(), e);
+        }
+
+        if (valueColumns.isEmpty()) {
+            return rawData; // Nothing to normalize, return as-is.
+        }
+
+        // --- Automated Un-Pivoting Transformation ---
+        List<String> newHeaders = new ArrayList<>(identifierColumns);
+        newHeaders.add("Dimension");
+        newHeaders.add("Applicable");
 
         List<List<Object>> newData = new ArrayList<>();
 
-        List<Integer> identifierColumnIndices = config.getIdentifierColumns().stream()
-            .map(name -> rawData.getHeaders().indexOf(name))
-            .collect(Collectors.toList());
+        // Get indices for faster lookup
+        List<Integer> identifierIndices = identifierColumns.stream()
+            .map(originalHeaders::indexOf).collect(Collectors.toList());
+        List<Integer> valueIndices = valueColumns.stream()
+            .map(originalHeaders::indexOf).collect(Collectors.toList());
 
-        List<Integer> valueColumnIndices = config.getValueColumns().stream()
-            .map(name -> rawData.getHeaders().indexOf(name))
-            .collect(Collectors.toList());
-
-        for (List<Object> row : rawData.getData()) {
+        for (List<Object> row : originalData) {
+            // Extract identifier values for the current row
             List<Object> identifierValues = new ArrayList<>();
-            for (int index : identifierColumnIndices) {
-                identifierValues.add(index != -1 && index < row.size() ? row.get(index) : null);
+            for (int index : identifierIndices) {
+                identifierValues.add(index < row.size() ? row.get(index) : "");
             }
 
-            for (int valueColIndex : valueColumnIndices) {
-                if (valueColIndex != -1 && valueColIndex < row.size()) {
-                    Object cellValue = row.get(valueColIndex);
-                    String cellValueStr = (cellValue != null) ? cellValue.toString() : "";
-                    if (!cellValueStr.trim().isEmpty()) {
-                        List<Object> newRow = new ArrayList<>(identifierValues);
-                        newRow.add(rawData.getHeaders().get(valueColIndex)); // Category
-                        newRow.add("Yes"); // Applicable
-                        newData.add(newRow);
-                    }
+            // Un-pivot the value columns
+            for (int valueIndex : valueIndices) {
+                List<Object> newRow = new ArrayList<>(identifierValues);
+
+                // Add Dimension (the header of the value column)
+                newRow.add(originalHeaders.get(valueIndex));
+
+                // Add Applicable (Yes/No based on cell content)
+                Object cellValue = valueIndex < row.size() ? row.get(valueIndex) : null;
+                String cellContent = (cellValue != null) ? cellValue.toString().trim() : "";
+
+                if (!cellContent.isEmpty()) {
+                    newRow.add("Yes");
+                } else {
+                    newRow.add("No");
                 }
+
+                newData.add(newRow);
             }
         }
 
