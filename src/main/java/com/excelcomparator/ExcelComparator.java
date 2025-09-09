@@ -199,7 +199,7 @@ public class ExcelComparator extends JFrame {
         optionsPanel.add(mappingContainer, BorderLayout.CENTER);
 
         JPanel checkboxPanel = new JPanel(new GridLayout(3, 1));
-        columnLevelComparison = new JCheckBox("Column-level comparison", true);
+        columnLevelComparison = new JCheckBox("Column-level comparison", false);
         detectMissingExtraRows = new JCheckBox("Detect missing/extra rows", true);
         checkboxPanel.add(columnLevelComparison);
         checkboxPanel.add(detectMissingExtraRows);
