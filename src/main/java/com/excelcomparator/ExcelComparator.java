@@ -32,6 +32,7 @@ public class ExcelComparator extends JFrame {
 
     private JCheckBox columnLevelComparison;
     private JCheckBox detectMissingExtraRows;
+    private JTextArea summaryArea;
 
     private ComparisonResult lastResult;
 
@@ -157,8 +158,14 @@ public class ExcelComparator extends JFrame {
     }
 
     private JPanel createResultsPanel() {
-        JPanel resultsPanel = new JPanel(new BorderLayout());
+        JPanel resultsPanel = new JPanel(new BorderLayout(5, 5));
         resultsPanel.setBorder(BorderFactory.createTitledBorder("Results"));
+
+        summaryArea = new JTextArea(6, 80);
+        summaryArea.setEditable(false);
+        summaryArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        resultsPanel.add(new JScrollPane(summaryArea), BorderLayout.NORTH);
+
         resultsTable = new JTable();
         resultsPanel.add(new JScrollPane(resultsTable), BorderLayout.CENTER);
 
@@ -274,7 +281,7 @@ public class ExcelComparator extends JFrame {
         }
 
         lastResult = ComparatorLogic.compare(data1, data2, keyColumns, !columnLevelComparison.isSelected(), detectMissingExtraRows.isSelected());
-        displayResults(lastResult);
+        displayResults(lastResult, lastResult.getSummary());
     }
 
     private void exportResults(ActionEvent e) {
@@ -303,12 +310,18 @@ public class ExcelComparator extends JFrame {
     }
 
     private void clearResults(ActionEvent e) {
+        summaryArea.setText("");
         resultsTable.setModel(new DefaultTableModel());
         lastResult = null;
     }
 
-    private void displayResults(ComparisonResult result) {
+    private void displayResults(ComparisonResult result, ComparisonSummary summary) {
+        summaryArea.setText(summary.toString());
+        summaryArea.setCaretPosition(0);
+
         List<String> displayHeaders = new ArrayList<>();
+        displayHeaders.add("File 1 Row");
+        displayHeaders.add("File 2 Row");
         displayHeaders.add("Status");
 
         List<String> headersForData;
@@ -326,10 +339,8 @@ public class ExcelComparator extends JFrame {
                     headersForData.add(col2);
                 }
             }
-            // Remove duplicates
             headersForData = new ArrayList<>(new LinkedHashSet<>(headersForData));
         } else {
-            // Default behavior: show all columns
             headersForData = result.getHeaders();
         }
         displayHeaders.addAll(headersForData);
@@ -341,10 +352,12 @@ public class ExcelComparator extends JFrame {
 
         for (ComparisonResult.ResultRow row : result.getResultRows()) {
             List<Object> rowData = new ArrayList<>();
+            rowData.add(row.getOriginalRowNum1() > 0 ? row.getOriginalRowNum1() : "");
+            rowData.add(row.getOriginalRowNum2() > 0 ? row.getOriginalRowNum2() : "");
             rowData.add(row.getStatus());
+
             for (String header : headersForData) {
                 Object val;
-
                 List<Integer> indices1 = getAllIndices(headers1, header);
                 List<Integer> indices2 = getAllIndices(headers2, header);
 

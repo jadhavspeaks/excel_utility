@@ -1,5 +1,6 @@
 package com.excelcomparator;
 
+import java.util.AbstractMap;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -16,66 +17,80 @@ public class ComparatorLogic {
         List<ComparisonResult.ResultRow> resultRows = new ArrayList<>();
         List<String> headers1 = data1.getHeaders();
         List<String> headers2 = data2.getHeaders();
+        List<Integer> rowNums1 = data1.getOriginalRowNumbers();
+        List<Integer> rowNums2 = data2.getOriginalRowNumbers();
 
-        // Create a unique, ordered list of headers
+        // --- Generate Comparison Summary ---
+        Set<String> h1Set = new LinkedHashSet<>(headers1);
+        Set<String> h2Set = new LinkedHashSet<>(headers2);
+
+        List<String> onlyIn1 = h1Set.stream().filter(h -> !h2Set.contains(h)).collect(Collectors.toList());
+        List<String> onlyIn2 = h2Set.stream().filter(h -> !h1Set.contains(h)).collect(Collectors.toList());
+        Set<String> common = h1Set.stream().filter(h2Set::contains).collect(Collectors.toSet());
+        ComparisonSummary summary = new ComparisonSummary(h1Set.size(), h2Set.size(), onlyIn1, onlyIn2, common);
+        // --- End Summary ---
+
         List<String> unifiedHeaders = new ArrayList<>(new LinkedHashSet<>(Stream.concat(headers1.stream(), headers2.stream())
                 .collect(Collectors.toList())));
 
-        Map<String, List<List<Object>>> mapOfData2 = new HashMap<>();
+        // Map key to a list of rows and their original numbers
+        Map<String, List<Map.Entry<Integer, List<Object>>>> mapOfData2 = new HashMap<>();
         if (findMissingRows) {
-            for (List<Object> row : data2.getData()) {
+            for (int i = 0; i < data2.getData().size(); i++) {
+                List<Object> row = data2.getData().get(i);
+                int rowNum = rowNums2.get(i);
                 String key = buildKey(row, keyColumnMap.values(), headers2);
-                mapOfData2.computeIfAbsent(key, k -> new ArrayList<>()).add(row);
+                mapOfData2.computeIfAbsent(key, k -> new ArrayList<>()).add(new AbstractMap.SimpleEntry<>(rowNum, row));
             }
         }
 
-        for (List<Object> row1 : data1.getData()) {
+        for (int i = 0; i < data1.getData().size(); i++) {
+            List<Object> row1 = data1.getData().get(i);
+            int rowNum1 = rowNums1.get(i);
             String key1 = buildKey(row1, keyColumnMap.keySet(), headers1);
-            List<List<Object>> matchingRows2 = mapOfData2.get(key1);
+            List<Map.Entry<Integer, List<Object>>> matchingEntries = mapOfData2.get(key1);
 
-            if (matchingRows2 != null && !matchingRows2.isEmpty()) {
-                List<Object> row2 = matchingRows2.remove(0); // Take the first match
-                if (matchingRows2.isEmpty()) {
+            if (matchingEntries != null && !matchingEntries.isEmpty()) {
+                Map.Entry<Integer, List<Object>> entry2 = matchingEntries.remove(0);
+                List<Object> row2 = entry2.getValue();
+                int rowNum2 = entry2.getKey();
+                if (matchingEntries.isEmpty()) {
                     mapOfData2.remove(key1);
                 }
 
                 if (compareAllColumns) {
-                    List<Boolean> mismatches = new ArrayList<>();
                     boolean hasMismatch = false;
                     for (String header : unifiedHeaders) {
-                        Object val1 = getCombinedValue(row1, getAllIndices(headers1, header));
-                        Object val2 = getCombinedValue(row2, getAllIndices(headers2, header));
-
+                        Object val1 = ExcelUtil.getCombinedValue(row1, ExcelUtil.getAllIndices(headers1, header));
+                        Object val2 = ExcelUtil.getCombinedValue(row2, ExcelUtil.getAllIndices(headers2, header));
                         if (!Objects.equals(val1, val2)) {
-                            mismatches.add(true);
                             hasMismatch = true;
-                        } else {
-                            mismatches.add(false);
+                            break;
                         }
                     }
                     if (hasMismatch) {
-                        resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MISMATCH, row1, row2, mismatches));
+                        resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MISMATCH, row1, row2, null, rowNum1, rowNum2));
                     } else {
-                        resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MATCH, row1, row2, Collections.nCopies(unifiedHeaders.size(), false)));
+                        resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MATCH, row1, row2, null, rowNum1, rowNum2));
                     }
                 } else {
-                    resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MATCH, row1, row2, Collections.nCopies(unifiedHeaders.size(), false)));
+                    resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MATCH, row1, row2, null, rowNum1, rowNum2));
                 }
 
             } else if (findMissingRows) {
-                resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MISSING_IN_FILE_2, row1, null, null));
+                resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MISSING_IN_FILE_2, row1, null, null, rowNum1, 0));
             }
         }
 
         if (findMissingRows) {
-            for (List<List<Object>> remainingRows : mapOfData2.values()) {
-                for (List<Object> row2 : remainingRows) {
-                    resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MISSING_IN_FILE_1, null, row2, null));
+            for (List<Map.Entry<Integer, List<Object>>> remainingEntries : mapOfData2.values()) {
+                for (Map.Entry<Integer, List<Object>> entry : remainingEntries) {
+                    resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MISSING_IN_FILE_1, null, entry.getValue(), null, 0, entry.getKey()));
                 }
             }
         }
 
-        return new ComparisonResult(resultRows, unifiedHeaders);
+        return new ComparisonResult(resultRows, unifiedHeaders, summary);
     }
 
     private static String buildKey(List<Object> row, Collection<String> keyHeaders, List<String> allHeaders) {
@@ -93,36 +108,4 @@ public class ComparatorLogic {
         return joiner.toString();
     }
 
-    private static List<Integer> getAllIndices(List<String> headers, String header) {
-        List<Integer> indices = new ArrayList<>();
-        if (headers == null) return indices;
-        for (int i = 0; i < headers.size(); i++) {
-            if (header.equals(headers.get(i))) {
-                indices.add(i);
-            }
-        }
-        return indices;
-    }
-
-    private static Object getCombinedValue(List<Object> data, List<Integer> indices) {
-        if (indices.isEmpty() || data == null) return "";
-        if (indices.size() == 1) {
-            int idx = indices.get(0);
-            return (idx < data.size()) ? data.get(idx) : "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < indices.size(); i++) {
-            int idx = indices.get(i);
-            if (idx < data.size()) {
-                Object val = data.get(idx);
-                if (val != null) {
-                    sb.append(val);
-                }
-            }
-            if (i < indices.size() - 1) {
-                sb.append(" | ");
-            }
-        }
-        return sb.toString();
-    }
 }

@@ -21,10 +21,12 @@ public class ExcelUtil {
     public static class ExcelData {
         private final List<String> headers;
         private final List<List<Object>> data;
+        private final List<Integer> originalRowNumbers;
 
-        public ExcelData(List<String> headers, List<List<Object>> data) {
+        public ExcelData(List<String> headers, List<List<Object>> data, List<Integer> originalRowNumbers) {
             this.headers = headers;
             this.data = data;
+            this.originalRowNumbers = originalRowNumbers;
         }
 
         public List<String> getHeaders() {
@@ -33,6 +35,10 @@ public class ExcelUtil {
 
         public List<List<Object>> getData() {
             return data;
+        }
+
+        public List<Integer> getOriginalRowNumbers() {
+            return originalRowNumbers;
         }
     }
 
@@ -51,6 +57,7 @@ public class ExcelUtil {
     public static ExcelData readExcel(File file, String sheetName, int headerRows, int numRows) throws IOException {
         List<String> headers = new ArrayList<>();
         List<List<Object>> data = new ArrayList<>();
+        List<Integer> originalRowNumbers = new ArrayList<>();
 
         try (Workbook workbook = WorkbookFactory.create(file)) {
             Sheet sheet;
@@ -101,6 +108,7 @@ public class ExcelUtil {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 List<Object> rowData = new ArrayList<>();
+                originalRowNumbers.add(row.getRowNum() + 1); // Capture row number
                 for (int j = 0; j < headers.size(); j++) {
                     Cell cell = row.getCell(j, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
                     rowData.add(getCellValueAsObject(cell));
@@ -111,7 +119,7 @@ public class ExcelUtil {
             throw new IOException("Error reading Excel file: " + e.getMessage(), e);
         }
 
-        return new ExcelData(headers, data);
+        return new ExcelData(headers, data, originalRowNumbers);
     }
 
     private static class HeaderAnalysisResult {
@@ -195,13 +203,19 @@ public class ExcelUtil {
             newHeaders.add("Child Dimension");
 
             List<List<Object>> newData = new ArrayList<>();
-            List<List<Object>> originalData = readExcel(file, sheetName, headerRows, -1).getData();
+            List<Integer> newRowNumbers = new ArrayList<>();
+            ExcelData rawExcelData = readExcel(file, sheetName, headerRows, -1);
+            List<List<Object>> originalData = rawExcelData.getData();
+            List<Integer> originalRowNums = rawExcelData.getOriginalRowNumbers();
 
             List<Integer> identifierIndices = analysis.identifierColumns.stream()
                 .map(analysis.allOriginalHeaders::indexOf)
                 .collect(Collectors.toList());
 
-            for (List<Object> row : originalData) {
+            for (int i = 0; i < originalData.size(); i++) {
+                List<Object> row = originalData.get(i);
+                int originalRowNum = originalRowNums.get(i);
+
                 List<Object> identifierValues = new ArrayList<>();
                 for (int index : identifierIndices) {
                     identifierValues.add(index < row.size() ? row.get(index) : "");
@@ -219,12 +233,13 @@ public class ExcelUtil {
                             newRow.add(groupName);
                             newRow.add(childHeader);
                             newData.add(newRow);
+                            newRowNumbers.add(originalRowNum);
                         }
                     }
                 }
             }
 
-            return new ExcelData(newHeaders, newData);
+            return new ExcelData(newHeaders, newData, newRowNumbers);
         } catch (Exception e) {
             throw new IOException("Failed to read and normalize Excel file: " + e.getMessage(), e);
         }
@@ -250,84 +265,110 @@ public class ExcelUtil {
     public static void writeResultToExcel(ComparisonResult result, ExcelData data1, ExcelData data2, File file) throws IOException {
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Comparison Result");
+            int rowNum = 0;
 
-            // Create cell styles
+            // --- Write Summary ---
+            ComparisonSummary summary = result.getSummary();
+            Font boldFont = workbook.createFont();
+            boldFont.setBold(true);
+            CellStyle boldStyle = workbook.createCellStyle();
+            boldStyle.setFont(boldFont);
+
+            Row r = sheet.createRow(rowNum++);
+            r.createCell(0).setCellValue("Comparison Summary");
+            r.getCell(0).setCellStyle(boldStyle);
+
+            sheet.createRow(rowNum++).createCell(0).setCellValue("File 1 Columns: " + summary.getFile1ColumnCount());
+            sheet.createRow(rowNum++).createCell(0).setCellValue("File 2 Columns: " + summary.getFile2ColumnCount());
+            sheet.createRow(rowNum++).createCell(0).setCellValue("Common Columns: " + summary.getCommonColumns().size());
+
+            if(!summary.getColumnsOnlyInFile1().isEmpty()){
+                r = sheet.createRow(rowNum++);
+                r.createCell(0).setCellValue("Columns only in File 1:");
+                r.getCell(0).setCellStyle(boldStyle);
+                for(String col : summary.getColumnsOnlyInFile1()){
+                     sheet.createRow(rowNum++).createCell(1).setCellValue(col);
+                }
+            }
+            if(!summary.getColumnsOnlyInFile2().isEmpty()){
+                r = sheet.createRow(rowNum++);
+                r.createCell(0).setCellValue("Columns only in File 2:");
+                r.getCell(0).setCellStyle(boldStyle);
+                for(String col : summary.getColumnsOnlyInFile2()){
+                     sheet.createRow(rowNum++).createCell(1).setCellValue(col);
+                }
+            }
+
+            rowNum++; // Add a blank line after summary
+
+            // --- Write Main Results Table ---
             CellStyle matchStyle = createStyle(workbook, IndexedColors.WHITE);
             CellStyle mismatchRowStyle = createStyle(workbook, IndexedColors.LIGHT_YELLOW);
             CellStyle missingStyle = createStyle(workbook, IndexedColors.ROSE);
             CellStyle mismatchCellStyle = createStyle(workbook, IndexedColors.GOLD);
 
-            // Header
-            Row headerRow = sheet.createRow(0);
+            Row headerRow = sheet.createRow(rowNum++);
             List<String> headers = new ArrayList<>();
+            headers.add("File 1 Row");
+            headers.add("File 2 Row");
             headers.add("Status");
             headers.addAll(result.getHeaders());
             for (int i = 0; i < headers.size(); i++) {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers.get(i));
+                cell.setCellStyle(boldStyle);
             }
 
             List<String> headers1 = data1.getHeaders();
             List<String> headers2 = data2.getHeaders();
 
-            // Data rows
-            int rowNum = 1;
             for (ComparisonResult.ResultRow resultRow : result.getResultRows()) {
                 Row row = sheet.createRow(rowNum++);
+                int cellIdx = 0;
+
+                // Row numbers
+                Cell r1Cell = row.createCell(cellIdx++);
+                if (resultRow.getOriginalRowNum1() > 0) r1Cell.setCellValue(resultRow.getOriginalRowNum1());
+                Cell r2Cell = row.createCell(cellIdx++);
+                if (resultRow.getOriginalRowNum2() > 0) r2Cell.setCellValue(resultRow.getOriginalRowNum2());
+
+                // Status cell
+                Cell statusCell = row.createCell(cellIdx++);
+                statusCell.setCellValue(resultRow.getStatus().toString());
+
+                // Data cells
+                for (String header : result.getHeaders()) {
+                    Cell cell = row.createCell(cellIdx++);
+                    Object val1 = getCombinedValue(resultRow.getData1(), getAllIndices(headers1, header));
+                    Object val2 = getCombinedValue(resultRow.getData2(), getAllIndices(headers2, header));
+
+                    if (resultRow.getStatus() == ComparisonResult.RowStatus.MISMATCH && !Objects.equals(val1, val2)) {
+                        setCellValue(cell, String.format("%s -> %s", val1, val2));
+                        cell.setCellStyle(mismatchCellStyle);
+                    } else if (resultRow.getStatus() == ComparisonResult.RowStatus.MISSING_IN_FILE_1) {
+                         setCellValue(cell, val2);
+                    } else {
+                        setCellValue(cell, val1);
+                    }
+                }
+
+                // Set row style
                 CellStyle rowStyle = matchStyle;
                 switch (resultRow.getStatus()) {
                     case MISMATCH: rowStyle = mismatchRowStyle; break;
                     case MISSING_IN_FILE_1: case MISSING_IN_FILE_2: rowStyle = missingStyle; break;
                 }
-
-                // Status cell
-                Cell statusCell = row.createCell(0);
-                statusCell.setCellValue(resultRow.getStatus().toString());
-                statusCell.setCellStyle(rowStyle);
-
-                // Data cells
-                for (int i = 0; i < result.getHeaders().size(); i++) {
-                    Cell cell = row.createCell(i + 1);
-                    String header = result.getHeaders().get(i);
-
-                    int idx1 = headers1.indexOf(header);
-                    int idx2 = headers2.indexOf(header);
-                    Object value = null;
-                    boolean isMismatch = false;
-
-                    switch (resultRow.getStatus()) {
-                         case MISSING_IN_FILE_1:
-                            value = (idx2 != -1 && resultRow.getData2() != null && idx2 < resultRow.getData2().size()) ? resultRow.getData2().get(idx2) : "";
-                            break;
-                        case MISSING_IN_FILE_2:
-                            value = (idx1 != -1 && resultRow.getData1() != null && idx1 < resultRow.getData1().size()) ? resultRow.getData1().get(idx1) : "";
-                            break;
-                        case MATCH:
-                            value = (idx1 != -1 && resultRow.getData1() != null && idx1 < resultRow.getData1().size()) ? resultRow.getData1().get(idx1) : "";
-                            break;
-                        case MISMATCH:
-                            Object val1 = (idx1 != -1 && resultRow.getData1() != null && idx1 < resultRow.getData1().size()) ? resultRow.getData1().get(idx1) : null;
-                            Object val2 = (idx2 != -1 && resultRow.getData2() != null && idx2 < resultRow.getData2().size()) ? resultRow.getData2().get(idx2) : null;
-                            if (!Objects.equals(val1, val2)) {
-                                value = String.format("%s -> %s", val1, val2);
-                                isMismatch = true;
-                            } else {
-                                value = val1;
-                            }
-                            break;
+                for(int i=0; i < cellIdx; i++){
+                    if(row.getCell(i).getCellStyle() == null){
+                         row.getCell(i).setCellStyle(rowStyle);
                     }
-
-                    setCellValue(cell, value);
-                    cell.setCellStyle(isMismatch ? mismatchCellStyle : rowStyle);
                 }
             }
 
-            // Autosize columns
             for (int i = 0; i < headers.size(); i++) {
                 sheet.autoSizeColumn(i);
             }
 
-            // Write to file
             try (FileOutputStream fileOut = new FileOutputStream(file)) {
                 workbook.write(fileOut);
             }
@@ -385,5 +426,37 @@ public class ExcelUtil {
             default:
                 return null;
         }
+    }
+    public static List<Integer> getAllIndices(List<String> headers, String header) {
+        List<Integer> indices = new ArrayList<>();
+        if (headers == null) return indices;
+        for (int i = 0; i < headers.size(); i++) {
+            if (header.equals(headers.get(i))) {
+                indices.add(i);
+            }
+        }
+        return indices;
+    }
+
+    public static Object getCombinedValue(List<Object> data, List<Integer> indices) {
+        if (indices.isEmpty() || data == null) return "";
+        if (indices.size() == 1) {
+            int idx = indices.get(0);
+            return (idx < data.size()) ? data.get(idx) : "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < indices.size(); i++) {
+            int idx = indices.get(i);
+            if (idx < data.size()) {
+                Object val = data.get(idx);
+                if (val != null) {
+                    sb.append(val);
+                }
+            }
+            if (i < indices.size() - 1) {
+                sb.append(" | ");
+            }
+        }
+        return sb.toString();
     }
 }
