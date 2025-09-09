@@ -17,14 +17,9 @@ public class ComparatorLogic {
         List<String> headers1 = data1.getHeaders();
         List<String> headers2 = data2.getHeaders();
 
-        // Create a unified header list
-        List<String> unifiedHeaders = Stream.concat(headers1.stream(), headers2.stream())
-                .distinct().collect(Collectors.toList());
-
-        Map<String, Integer> keyColumnIndexes1 = keyColumnMap.keySet().stream()
-                .collect(Collectors.toMap(h -> h, headers1::indexOf));
-        Map<String, Integer> keyColumnIndexes2 = keyColumnMap.values().stream()
-                .collect(Collectors.toMap(h -> h, headers2::indexOf));
+        // Create a unique, ordered list of headers
+        List<String> unifiedHeaders = new ArrayList<>(new LinkedHashSet<>(Stream.concat(headers1.stream(), headers2.stream())
+                .collect(Collectors.toList())));
 
         Map<String, List<List<Object>>> mapOfData2 = new HashMap<>();
         if (findMissingRows) {
@@ -48,10 +43,9 @@ public class ComparatorLogic {
                     List<Boolean> mismatches = new ArrayList<>();
                     boolean hasMismatch = false;
                     for (String header : unifiedHeaders) {
-                        int idx1 = headers1.indexOf(header);
-                        int idx2 = headers2.indexOf(header);
-                        Object val1 = (idx1 != -1 && idx1 < row1.size()) ? row1.get(idx1) : null;
-                        Object val2 = (idx2 != -1 && idx2 < row2.size()) ? row2.get(idx2) : null;
+                        Object val1 = getCombinedValue(row1, getAllIndices(headers1, header));
+                        Object val2 = getCombinedValue(row2, getAllIndices(headers2, header));
+
                         if (!Objects.equals(val1, val2)) {
                             mismatches.add(true);
                             hasMismatch = true;
@@ -87,6 +81,7 @@ public class ComparatorLogic {
     private static String buildKey(List<Object> row, Collection<String> keyHeaders, List<String> allHeaders) {
         StringJoiner joiner = new StringJoiner("||");
         for (String keyHeader : keyHeaders) {
+            // For keys, we consistently use the *first* occurrence of the header.
             int index = allHeaders.indexOf(keyHeader);
             if (index != -1 && index < row.size()) {
                 Object value = row.get(index);
@@ -96,5 +91,38 @@ public class ComparatorLogic {
             }
         }
         return joiner.toString();
+    }
+
+    private static List<Integer> getAllIndices(List<String> headers, String header) {
+        List<Integer> indices = new ArrayList<>();
+        if (headers == null) return indices;
+        for (int i = 0; i < headers.size(); i++) {
+            if (header.equals(headers.get(i))) {
+                indices.add(i);
+            }
+        }
+        return indices;
+    }
+
+    private static Object getCombinedValue(List<Object> data, List<Integer> indices) {
+        if (indices.isEmpty() || data == null) return "";
+        if (indices.size() == 1) {
+            int idx = indices.get(0);
+            return (idx < data.size()) ? data.get(idx) : "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < indices.size(); i++) {
+            int idx = indices.get(i);
+            if (idx < data.size()) {
+                Object val = data.get(idx);
+                if (val != null) {
+                    sb.append(val);
+                }
+            }
+            if (i < indices.size() - 1) {
+                sb.append(" | ");
+            }
+        }
+        return sb.toString();
     }
 }

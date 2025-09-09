@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +20,8 @@ public class ExcelComparator extends JFrame {
     private ExcelUtil.ExcelData data1, data2;
     private File file1, file2;
     private JComboBox<String> sheet1ComboBox, sheet2ComboBox;
+    private JSpinner headerRowsSpinner1, headerRowsSpinner2;
+
 
     private JPanel columnMappingPanel;
     private List<JComboBox<String>> file1ColumnDropdowns;
@@ -46,22 +49,32 @@ public class ExcelComparator extends JFrame {
         JPanel topPanel = new JPanel(new GridLayout(1, 2, 5, 5));
 
         // File 1 Panel
-        JPanel file1Panel = new JPanel(new BorderLayout());
+        JPanel file1Panel = new JPanel(new BorderLayout(5,0));
         file1Panel.setBorder(BorderFactory.createTitledBorder("File 1"));
         JButton file1Button = new JButton("Choose File...");
         sheet1ComboBox = new JComboBox<>();
         sheet1ComboBox.setEnabled(false);
-        file1Panel.add(file1Button, BorderLayout.WEST);
+        headerRowsSpinner1 = new JSpinner(new SpinnerNumberModel(1, 1, 10, 1));
+        JPanel file1Controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        file1Controls.add(file1Button);
+        file1Controls.add(new JLabel(" Header Rows:"));
+        file1Controls.add(headerRowsSpinner1);
+        file1Panel.add(file1Controls, BorderLayout.WEST);
         file1Panel.add(sheet1ComboBox, BorderLayout.CENTER);
         topPanel.add(file1Panel);
 
         // File 2 Panel
-        JPanel file2Panel = new JPanel(new BorderLayout());
+        JPanel file2Panel = new JPanel(new BorderLayout(5,0));
         file2Panel.setBorder(BorderFactory.createTitledBorder("File 2"));
         JButton file2Button = new JButton("Choose File...");
         sheet2ComboBox = new JComboBox<>();
         sheet2ComboBox.setEnabled(false);
-        file2Panel.add(file2Button, BorderLayout.WEST);
+        headerRowsSpinner2 = new JSpinner(new SpinnerNumberModel(1, 1, 10, 1));
+        JPanel file2Controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        file2Controls.add(file2Button);
+        file2Controls.add(new JLabel(" Header Rows:"));
+        file2Controls.add(headerRowsSpinner2);
+        file2Panel.add(file2Controls, BorderLayout.WEST);
         file2Panel.add(sheet2ComboBox, BorderLayout.CENTER);
         topPanel.add(file2Panel);
 
@@ -136,6 +149,8 @@ public class ExcelComparator extends JFrame {
         file2Button.addActionListener(this::chooseFile2);
         sheet1ComboBox.addActionListener(this::sheet1Changed);
         sheet2ComboBox.addActionListener(this::sheet2Changed);
+        headerRowsSpinner1.addChangeListener(e -> sheet1Changed(null));
+        headerRowsSpinner2.addChangeListener(e -> sheet2Changed(null));
         addMappingButton.addActionListener(e -> addMappingRow());
         runButton.addActionListener(this::runComparison);
         exportButton.addActionListener(this::exportResults);
@@ -196,10 +211,13 @@ public class ExcelComparator extends JFrame {
 
     private void loadSheetData(int fileNum, String sheetName) {
         File file = (fileNum == 1) ? file1 : file2;
+        JSpinner spinner = (fileNum == 1) ? headerRowsSpinner1 : headerRowsSpinner2;
         if (file == null) return;
 
+        int headerRows = (Integer) spinner.getValue();
+
         try {
-            ExcelUtil.ExcelData data = ExcelUtil.readExcel(file, sheetName, -1);
+            ExcelUtil.ExcelData data = ExcelUtil.readExcel(file, sheetName, headerRows, -1);
             if (fileNum == 1) {
                 data1 = data;
                 updatePreviewTable(preview1, data1, 10);
@@ -223,7 +241,7 @@ public class ExcelComparator extends JFrame {
         for (int i = 0; i < file1ColumnDropdowns.size(); i++) {
             String col1 = (String) file1ColumnDropdowns.get(i).getSelectedItem();
             String col2 = (String) file2ColumnDropdowns.get(i).getSelectedItem();
-            if (col1 != null && col2 != null) {
+            if (col1 != null && col2 != null && !col1.isEmpty() && !col2.isEmpty()) {
                 keyColumns.put(col1, col2);
             }
         }
@@ -276,23 +294,24 @@ public class ExcelComparator extends JFrame {
             List<Object> rowData = new ArrayList<>();
             rowData.add(row.getStatus());
             for (String header : result.getHeaders()) {
-                int idx1 = headers1.indexOf(header);
-                int idx2 = headers2.indexOf(header);
                 Object val;
+
+                List<Integer> indices1 = getAllIndices(headers1, header);
+                List<Integer> indices2 = getAllIndices(headers2, header);
 
                 switch (row.getStatus()) {
                     case MISSING_IN_FILE_1:
-                        val = (idx2 != -1 && row.getData2() != null && idx2 < row.getData2().size()) ? row.getData2().get(idx2) : "";
+                        val = getCombinedValue(row.getData2(), indices2);
                         break;
                     case MISSING_IN_FILE_2:
-                        val = (idx1 != -1 && row.getData1() != null && idx1 < row.getData1().size()) ? row.getData1().get(idx1) : "";
+                        val = getCombinedValue(row.getData1(), indices1);
                         break;
                     case MATCH:
-                        val = (idx1 != -1 && row.getData1() != null && idx1 < row.getData1().size()) ? row.getData1().get(idx1) : "";
+                         val = getCombinedValue(row.getData1(), indices1);
                         break;
                     case MISMATCH:
-                        Object val1 = (idx1 != -1 && row.getData1() != null && idx1 < row.getData1().size()) ? row.getData1().get(idx1) : null;
-                        Object val2 = (idx2 != -1 && row.getData2() != null && idx2 < row.getData2().size()) ? row.getData2().get(idx2) : null;
+                        Object val1 = getCombinedValue(row.getData1(), indices1);
+                        Object val2 = getCombinedValue(row.getData2(), indices2);
                         if (!java.util.Objects.equals(val1, val2)) {
                             val = String.format("%s -> %s", val1, val2);
                         } else {
@@ -308,7 +327,36 @@ public class ExcelComparator extends JFrame {
         }
 
         resultsTable.setModel(model);
-        resultsTable.setDefaultRenderer(Object.class, new ResultCellRenderer(result));
+        resultsTable.setDefaultRenderer(Object.class, new ResultCellRenderer(result, data1, data2));
+    }
+
+    private List<Integer> getAllIndices(List<String> headers, String header) {
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < headers.size(); i++) {
+            if (header.equals(headers.get(i))) {
+                indices.add(i);
+            }
+        }
+        return indices;
+    }
+
+    private Object getCombinedValue(List<Object> data, List<Integer> indices) {
+        if (indices.isEmpty() || data == null) return "";
+        if (indices.size() == 1) {
+            int idx = indices.get(0);
+            return (idx < data.size()) ? data.get(idx) : "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < indices.size(); i++) {
+            int idx = indices.get(i);
+            if (idx < data.size()) {
+                sb.append(data.get(idx));
+            }
+            if (i < indices.size() - 1) {
+                sb.append(" | ");
+            }
+        }
+        return sb.toString();
     }
 
 
@@ -342,22 +390,18 @@ public class ExcelComparator extends JFrame {
     }
 
     private void updateColumnMappings() {
-        String[] headers1 = (data1 != null) ? data1.getHeaders().toArray(new String[0]) : new String[0];
-        String[] headers2 = (data2 != null) ? data2.getHeaders().toArray(new String[0]) : new String[0];
+        String[] headers1 = (data1 != null) ? new LinkedHashSet<>(data1.getHeaders()).toArray(new String[0]) : new String[0];
+        String[] headers2 = (data2 != null) ? new LinkedHashSet<>(data2.getHeaders()).toArray(new String[0]) : new String[0];
 
         for (JComboBox<String> cb : file1ColumnDropdowns) {
             Object selected = cb.getSelectedItem();
             cb.setModel(new DefaultComboBoxModel<>(headers1));
-            if (cb.getItemCount() > 0) {
-                cb.setSelectedItem(selected != null ? selected : cb.getItemAt(0));
-            }
+            cb.setSelectedItem(selected);
         }
         for (JComboBox<String> cb : file2ColumnDropdowns) {
             Object selected = cb.getSelectedItem();
             cb.setModel(new DefaultComboBoxModel<>(headers2));
-            if (cb.getItemCount() > 0) {
-                cb.setSelectedItem(selected != null ? selected : cb.getItemAt(0));
-            }
+            cb.setSelectedItem(selected);
         }
     }
 
@@ -389,9 +433,12 @@ public class ExcelComparator extends JFrame {
 
 class ResultCellRenderer extends DefaultTableCellRenderer {
     private final ComparisonResult result;
+    private final ExcelData data1, data2;
 
-    public ResultCellRenderer(ComparisonResult result) {
+    public ResultCellRenderer(ComparisonResult result, ExcelData data1, ExcelData data2) {
         this.result = result;
+        this.data1 = data1;
+        this.data2 = data2;
     }
 
     @Override
@@ -410,9 +457,11 @@ class ResultCellRenderer extends DefaultTableCellRenderer {
                 case MISMATCH:
                     backgroundColor = new Color(255, 255, 224); // Light yellow
                     if (column > 0) { // Not the status column
-                        List<Boolean> mismatches = resultRow.getMismatches();
-                        if (mismatches != null && (column - 1) < mismatches.size() && mismatches.get(column - 1)) {
-                            backgroundColor = new Color(255, 218, 185); // Peach
+                        String header = table.getColumnName(column);
+                        Object val1 = getCombinedValue(resultRow.getData1(), getAllIndices(data1.getHeaders(), header));
+                        Object val2 = getCombinedValue(resultRow.getData2(), getAllIndices(data2.getHeaders(), header));
+                         if (!java.util.Objects.equals(val1, val2)) {
+                             backgroundColor = new Color(255, 218, 185); // Peach
                         }
                     }
                     break;
@@ -435,5 +484,35 @@ class ResultCellRenderer extends DefaultTableCellRenderer {
         }
 
         return c;
+    }
+
+    private List<Integer> getAllIndices(List<String> headers, String header) {
+        List<Integer> indices = new ArrayList<>();
+        if (headers == null) return indices;
+        for (int i = 0; i < headers.size(); i++) {
+            if (header.equals(headers.get(i))) {
+                indices.add(i);
+            }
+        }
+        return indices;
+    }
+
+    private Object getCombinedValue(List<Object> data, List<Integer> indices) {
+        if (indices.isEmpty() || data == null) return "";
+        if (indices.size() == 1) {
+            int idx = indices.get(0);
+            return (idx < data.size()) ? data.get(idx) : "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < indices.size(); i++) {
+            int idx = indices.get(i);
+            if (idx < data.size()) {
+                sb.append(data.get(idx));
+            }
+            if (i < indices.size() - 1) {
+                sb.append(" | ");
+            }
+        }
+        return sb.toString();
     }
 }

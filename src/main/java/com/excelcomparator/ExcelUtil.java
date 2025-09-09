@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.Map;
 
 public class ExcelUtil {
 
@@ -43,7 +45,7 @@ public class ExcelUtil {
         return sheetNames;
     }
 
-    public static ExcelData readExcel(File file, String sheetName, int numRows) throws IOException {
+    public static ExcelData readExcel(File file, String sheetName, int headerRows, int numRows) throws IOException {
         List<String> headers = new ArrayList<>();
         List<List<Object>> data = new ArrayList<>();
 
@@ -60,17 +62,34 @@ public class ExcelUtil {
             }
 
             // Read headers
-            Row headerRow = sheet.getRow(0);
-            if (headerRow != null) {
-                for (Cell cell : headerRow) {
-                    headers.add(getCellValueAsString(cell));
+            int maxCols = 0;
+            Map<Integer, StringBuilder> headerBuilders = new TreeMap<>();
+            for (int i = 0; i < headerRows; i++) {
+                Row headerRow = sheet.getRow(i);
+                if (headerRow == null) continue;
+                maxCols = Math.max(maxCols, headerRow.getLastCellNum());
+                for (int j = 0; j < maxCols; j++) {
+                    Cell cell = headerRow.getCell(j);
+                    String cellValue = getCellValueAsString(cell).trim();
+                    StringBuilder sb = headerBuilders.computeIfAbsent(j, k -> new StringBuilder());
+                    if (!cellValue.isEmpty()) {
+                        if (sb.length() > 0) {
+                            sb.append(" | ");
+                        }
+                        sb.append(cellValue);
+                    }
                 }
             }
 
-            int rowsToRead = (numRows == -1) ? sheet.getLastRowNum() : Math.min(numRows, sheet.getLastRowNum());
+            for (int i=0; i<maxCols; i++) {
+                headers.add(headerBuilders.getOrDefault(i, new StringBuilder()).toString());
+            }
+
+
+            int rowsToRead = (numRows == -1) ? sheet.getLastRowNum() : Math.min(headerRows + numRows -1, sheet.getLastRowNum());
 
             // Read data rows
-            for (int i = 1; i <= rowsToRead; i++) {
+            for (int i = headerRows; i <= rowsToRead; i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 List<Object> rowData = new ArrayList<>();
