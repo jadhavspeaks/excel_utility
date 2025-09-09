@@ -273,7 +273,7 @@ public class ExcelComparator extends JFrame {
             return;
         }
 
-        lastResult = ComparatorLogic.compare(data1, data2, keyColumns, columnLevelComparison.isSelected(), detectMissingExtraRows.isSelected());
+        lastResult = ComparatorLogic.compare(data1, data2, keyColumns, !columnLevelComparison.isSelected(), detectMissingExtraRows.isSelected());
         displayResults(lastResult);
     }
 
@@ -308,11 +308,33 @@ public class ExcelComparator extends JFrame {
     }
 
     private void displayResults(ComparisonResult result) {
-        List<String> headers = new ArrayList<>();
-        headers.add("Status");
-        headers.addAll(result.getHeaders());
+        List<String> displayHeaders = new ArrayList<>();
+        displayHeaders.add("Status");
 
-        DefaultTableModel model = new DefaultTableModel(headers.toArray(new String[0]), 0);
+        List<String> headersForData;
+
+        if (columnLevelComparison.isSelected()) {
+            // New behavior: show only key columns
+            headersForData = new ArrayList<>();
+            for (int i = 0; i < file1ColumnDropdowns.size(); i++) {
+                String col1 = (String) file1ColumnDropdowns.get(i).getSelectedItem();
+                String col2 = (String) file2ColumnDropdowns.get(i).getSelectedItem();
+                if (col1 != null && !col1.isEmpty()) {
+                    headersForData.add(col1);
+                }
+                 if (col2 != null && !col2.isEmpty()) {
+                    headersForData.add(col2);
+                }
+            }
+            // Remove duplicates
+            headersForData = new ArrayList<>(new LinkedHashSet<>(headersForData));
+        } else {
+            // Default behavior: show all columns
+            headersForData = result.getHeaders();
+        }
+        displayHeaders.addAll(headersForData);
+
+        DefaultTableModel model = new DefaultTableModel(displayHeaders.toArray(new String[0]), 0);
 
         List<String> headers1 = data1.getHeaders();
         List<String> headers2 = data2.getHeaders();
@@ -320,7 +342,7 @@ public class ExcelComparator extends JFrame {
         for (ComparisonResult.ResultRow row : result.getResultRows()) {
             List<Object> rowData = new ArrayList<>();
             rowData.add(row.getStatus());
-            for (String header : result.getHeaders()) {
+            for (String header : headersForData) {
                 Object val;
 
                 List<Integer> indices1 = getAllIndices(headers1, header);
