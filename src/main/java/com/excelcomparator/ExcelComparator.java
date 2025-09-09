@@ -220,8 +220,15 @@ public class ExcelComparator extends JFrame {
         runButton.addActionListener(this::runComparison);
         JButton exportButton = new JButton("Export to Excel");
         exportButton.addActionListener(this::exportResults);
+        JButton clearButton = new JButton("Clear Result");
+        clearButton.addActionListener(this::clearResults);
+        JButton exitButton = new JButton("Exit");
+        exitButton.addActionListener(e -> System.exit(0));
+
         actionPanel.add(runButton);
         actionPanel.add(exportButton);
+        actionPanel.add(clearButton);
+        actionPanel.add(exitButton);
         resultsPanel.add(actionPanel, BorderLayout.SOUTH);
         return resultsPanel;
     }
@@ -373,6 +380,11 @@ public class ExcelComparator extends JFrame {
                 JOptionPane.showMessageDialog(this, "Error exporting results: " + ex.getMessage(), "Export Error", JOptionPane.ERROR_MESSAGE);
             }
         }
+    }
+
+    private void clearResults(ActionEvent e) {
+        resultsTable.setModel(new DefaultTableModel());
+        lastResult = null;
     }
 
     private void displayResults(ComparisonResult result) {
