@@ -1,6 +1,7 @@
 package com.excelcomparator;
 
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.File;
@@ -61,16 +62,22 @@ public class ExcelUtil {
                 throw new IOException("Sheet '" + sheetName + "' not found in the workbook.");
             }
 
-            // Read headers
+            // Read headers, accounting for merged regions
             int maxCols = 0;
+            List<CellRangeAddress> mergedRegions = sheet.getMergedRegions();
             Map<Integer, StringBuilder> headerBuilders = new TreeMap<>();
+
             for (int i = 0; i < headerRows; i++) {
                 Row headerRow = sheet.getRow(i);
                 if (headerRow == null) continue;
                 maxCols = Math.max(maxCols, headerRow.getLastCellNum());
+            }
+
+            for (int i = 0; i < headerRows; i++) {
+                Row headerRow = sheet.getRow(i);
                 for (int j = 0; j < maxCols; j++) {
-                    Cell cell = headerRow.getCell(j);
-                    String cellValue = getCellValueAsString(cell).trim();
+                    Cell cell = headerRow != null ? headerRow.getCell(j) : null;
+                    String cellValue = getCellValueFromMergedRegion(sheet, i, j, mergedRegions).trim();
                     StringBuilder sb = headerBuilders.computeIfAbsent(j, k -> new StringBuilder());
                     if (!cellValue.isEmpty()) {
                         if (sb.length() > 0) {
@@ -81,10 +88,9 @@ public class ExcelUtil {
                 }
             }
 
-            for (int i=0; i<maxCols; i++) {
+            for (int i = 0; i < maxCols; i++) {
                 headers.add(headerBuilders.getOrDefault(i, new StringBuilder()).toString());
             }
-
 
             int rowsToRead = (numRows == -1) ? sheet.getLastRowNum() : Math.min(headerRows + numRows -1, sheet.getLastRowNum());
 
@@ -105,6 +111,22 @@ public class ExcelUtil {
 
         return new ExcelData(headers, data);
     }
+
+    private static String getCellValueFromMergedRegion(Sheet sheet, int rowNum, int colNum, List<CellRangeAddress> mergedRegions) {
+        for (CellRangeAddress region : mergedRegions) {
+            if (region.isInRange(rowNum, colNum)) {
+                Row firstRow = sheet.getRow(region.getFirstRow());
+                if (firstRow != null) {
+                    Cell firstCell = firstRow.getCell(region.getFirstColumn());
+                    return getCellValueAsString(firstCell);
+                }
+                return "";
+            }
+        }
+        Row row = sheet.getRow(rowNum);
+        return (row != null) ? getCellValueAsString(row.getCell(colNum)) : "";
+    }
+
 
     public static void writeResultToExcel(ComparisonResult result, ExcelData data1, ExcelData data2, File file) throws IOException {
         try (Workbook workbook = new XSSFWorkbook()) {
