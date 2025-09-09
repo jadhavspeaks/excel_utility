@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class ExcelUtil {
 
@@ -92,7 +93,7 @@ public class ExcelUtil {
                 headers.add(headerBuilders.getOrDefault(i, new StringBuilder()).toString());
             }
 
-            int rowsToRead = (numRows == -1) ? sheet.getLastRowNum() : Math.min(headerRows + numRows -1, sheet.getLastRowNum());
+            int rowsToRead = (numRows == -1) ? sheet.getLastRowNum() : Math.min(headerRows + numRows - 1, sheet.getLastRowNum());
 
             // Read data rows
             for (int i = headerRows; i <= rowsToRead; i++) {
@@ -111,6 +112,47 @@ public class ExcelUtil {
 
         return new ExcelData(headers, data);
     }
+
+    public static ExcelData readAndNormalize(File file, String sheetName, int headerRows, NormalizationConfig config) throws IOException {
+        ExcelData rawData = readExcel(file, sheetName, headerRows, -1);
+
+        List<String> newHeaders = new ArrayList<>(config.getIdentifierColumns());
+        newHeaders.add(config.getNewCategoryColumnName());
+        newHeaders.add(config.getNewValueColumnName());
+
+        List<List<Object>> newData = new ArrayList<>();
+
+        List<Integer> identifierColumnIndices = config.getIdentifierColumns().stream()
+            .map(name -> rawData.getHeaders().indexOf(name))
+            .collect(Collectors.toList());
+
+        List<Integer> valueColumnIndices = config.getValueColumns().stream()
+            .map(name -> rawData.getHeaders().indexOf(name))
+            .collect(Collectors.toList());
+
+        for (List<Object> row : rawData.getData()) {
+            List<Object> identifierValues = new ArrayList<>();
+            for (int index : identifierColumnIndices) {
+                identifierValues.add(index != -1 && index < row.size() ? row.get(index) : null);
+            }
+
+            for (int valueColIndex : valueColumnIndices) {
+                if (valueColIndex != -1 && valueColIndex < row.size()) {
+                    Object cellValue = row.get(valueColIndex);
+                    String cellValueStr = (cellValue != null) ? cellValue.toString() : "";
+                    if (!cellValueStr.trim().isEmpty()) {
+                        List<Object> newRow = new ArrayList<>(identifierValues);
+                        newRow.add(rawData.getHeaders().get(valueColIndex)); // Category
+                        newRow.add("Yes"); // Applicable
+                        newData.add(newRow);
+                    }
+                }
+            }
+        }
+
+        return new ExcelData(newHeaders, newData);
+    }
+
 
     private static String getCellValueFromMergedRegion(Sheet sheet, int rowNum, int colNum, List<CellRangeAddress> mergedRegions) {
         for (CellRangeAddress region : mergedRegions) {

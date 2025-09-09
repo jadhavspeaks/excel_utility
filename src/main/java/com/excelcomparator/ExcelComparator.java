@@ -9,10 +9,12 @@ import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class ExcelComparator extends JFrame {
 
@@ -22,6 +24,11 @@ public class ExcelComparator extends JFrame {
     private JComboBox<String> sheet1ComboBox, sheet2ComboBox;
     private JSpinner headerRowsSpinner1, headerRowsSpinner2;
 
+    private JCheckBox chkNormalize1, chkNormalize2;
+    private JPanel normalizePanel1, normalizePanel2;
+    private JList<String> identifierList1, identifierList2;
+    private JList<String> valueList1, valueList2;
+    private JTextField categoryName1, categoryName2, valueName1, valueName2;
 
     private JPanel columnMappingPanel;
     private List<JComboBox<String>> file1ColumnDropdowns;
@@ -41,51 +48,23 @@ public class ExcelComparator extends JFrame {
         file1ColumnDropdowns = new ArrayList<>();
         file2ColumnDropdowns = new ArrayList<>();
 
-        // Main panel
         JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // Top panel for file choosers
         JPanel topPanel = new JPanel(new GridLayout(1, 2, 5, 5));
 
-        // File 1 Panel
-        JPanel file1Panel = new JPanel(new BorderLayout(5,0));
-        file1Panel.setBorder(BorderFactory.createTitledBorder("File 1"));
-        JButton file1Button = new JButton("Choose File...");
-        sheet1ComboBox = new JComboBox<>();
-        sheet1ComboBox.setEnabled(false);
-        headerRowsSpinner1 = new JSpinner(new SpinnerNumberModel(1, 1, 10, 1));
-        JPanel file1Controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        file1Controls.add(file1Button);
-        file1Controls.add(new JLabel(" Header Rows:"));
-        file1Controls.add(headerRowsSpinner1);
-        file1Panel.add(file1Controls, BorderLayout.WEST);
-        file1Panel.add(sheet1ComboBox, BorderLayout.CENTER);
-        topPanel.add(file1Panel);
+        JPanel file1Panel = createFilePanel(1);
+        JPanel file2Panel = createFilePanel(2);
 
-        // File 2 Panel
-        JPanel file2Panel = new JPanel(new BorderLayout(5,0));
-        file2Panel.setBorder(BorderFactory.createTitledBorder("File 2"));
-        JButton file2Button = new JButton("Choose File...");
-        sheet2ComboBox = new JComboBox<>();
-        sheet2ComboBox.setEnabled(false);
-        headerRowsSpinner2 = new JSpinner(new SpinnerNumberModel(1, 1, 10, 1));
-        JPanel file2Controls = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        file2Controls.add(file2Button);
-        file2Controls.add(new JLabel(" Header Rows:"));
-        file2Controls.add(headerRowsSpinner2);
-        file2Panel.add(file2Controls, BorderLayout.WEST);
-        file2Panel.add(sheet2ComboBox, BorderLayout.CENTER);
+        topPanel.add(file1Panel);
         topPanel.add(file2Panel);
 
         mainPanel.add(topPanel, BorderLayout.NORTH);
 
-        // Center panel for previews and options
         JSplitPane centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        centerSplit.setResizeWeight(0.7);
+        centerSplit.setResizeWeight(0.6);
         mainPanel.add(centerSplit, BorderLayout.CENTER);
 
-        // Preview tables
         JPanel previewPanel = new JPanel(new GridLayout(1, 2, 5, 5));
         previewPanel.setBorder(BorderFactory.createTitledBorder("Preview (First 10 Rows)"));
         preview1 = new JTable();
@@ -94,21 +73,123 @@ public class ExcelComparator extends JFrame {
         previewPanel.add(new JScrollPane(preview2));
         centerSplit.setTopComponent(previewPanel);
 
-        // Bottom component with options and results
         JSplitPane bottomSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         bottomSplit.setResizeWeight(0.4);
         centerSplit.setBottomComponent(bottomSplit);
 
-        // Options Panel
+        JPanel optionsPanel = createOptionsPanel();
+        bottomSplit.setLeftComponent(optionsPanel);
+
+        JPanel resultsPanel = createResultsPanel();
+        bottomSplit.setRightComponent(resultsPanel);
+
+        add(mainPanel);
+    }
+
+    private JPanel createFilePanel(int fileNum) {
+        JPanel filePanel = new JPanel(new BorderLayout(5, 5));
+        filePanel.setBorder(BorderFactory.createTitledBorder("File " + fileNum));
+
+        JButton fileButton = new JButton("Choose File...");
+        JComboBox<String> sheetComboBox = new JComboBox<>();
+        sheetComboBox.setEnabled(false);
+        JSpinner headerRowsSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 10, 1));
+
+        JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 2, 0));
+        controlsPanel.add(fileButton);
+        controlsPanel.add(new JLabel("Headers:"));
+        controlsPanel.add(headerRowsSpinner);
+        controlsPanel.add(new JLabel("Sheet:"));
+
+        JPanel topControls = new JPanel(new BorderLayout());
+        topControls.add(controlsPanel, BorderLayout.WEST);
+        topControls.add(sheetComboBox, BorderLayout.CENTER);
+
+        JCheckBox chkNormalize = new JCheckBox("Enable Normalization (Un-pivot Wide Format)");
+        JPanel normalizePanel = createNormalizePanel(fileNum);
+        normalizePanel.setVisible(false);
+
+        chkNormalize.addActionListener(e -> {
+            normalizePanel.setVisible(chkNormalize.isSelected());
+            if (fileNum == 1) sheet1Changed(null); else sheet2Changed(null);
+        });
+
+        JPanel southPanel = new JPanel(new BorderLayout());
+        southPanel.add(chkNormalize, BorderLayout.NORTH);
+        southPanel.add(normalizePanel, BorderLayout.CENTER);
+
+        filePanel.add(topControls, BorderLayout.NORTH);
+        filePanel.add(southPanel, BorderLayout.SOUTH);
+
+        if (fileNum == 1) {
+            sheet1ComboBox = sheetComboBox;
+            headerRowsSpinner1 = headerRowsSpinner;
+            chkNormalize1 = chkNormalize;
+            normalizePanel1 = normalizePanel;
+            fileButton.addActionListener(this::chooseFile1);
+            sheet1ComboBox.addActionListener(this::sheet1Changed);
+            headerRowsSpinner1.addChangeListener(e -> sheet1Changed(null));
+        } else {
+            sheet2ComboBox = sheetComboBox;
+            headerRowsSpinner2 = headerRowsSpinner;
+            chkNormalize2 = chkNormalize;
+            normalizePanel2 = normalizePanel;
+            fileButton.addActionListener(this::chooseFile2);
+            sheet2ComboBox.addActionListener(this::sheet2Changed);
+            headerRowsSpinner2.addChangeListener(e -> sheet2Changed(null));
+        }
+        return filePanel;
+    }
+
+    private JPanel createNormalizePanel(int fileNum) {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(2,2,2,2);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        JList<String> identifierList = new JList<>();
+        JList<String> valueList = new JList<>();
+        JTextField categoryName = new JTextField("Category", 10);
+        JTextField valueName = new JTextField("Value", 10);
+
+        gbc.gridx=0; gbc.gridy=0; panel.add(new JLabel("Identifier Columns:"), gbc);
+        gbc.gridx=1; gbc.weightx=1; gbc.fill = GridBagConstraints.BOTH; gbc.weighty = 1; panel.add(new JScrollPane(identifierList), gbc);
+        gbc.gridx=0; gbc.gridy=1; gbc.weightx=0; gbc.weighty = 0; panel.add(new JLabel("Value Columns:"), gbc);
+        gbc.gridx=1; gbc.weightx=1; gbc.weighty = 1; panel.add(new JScrollPane(valueList), gbc);
+        gbc.gridx=0; gbc.gridy=2; gbc.weightx=0; gbc.weighty = 0; panel.add(new JLabel("New Category Column Name:"), gbc);
+        gbc.gridx=1; gbc.weightx=1; gbc.fill = GridBagConstraints.HORIZONTAL; panel.add(categoryName, gbc);
+        gbc.gridx=0; gbc.gridy=3; gbc.weightx=0; panel.add(new JLabel("New Value Column Name:"), gbc);
+        gbc.gridx=1; gbc.weightx=1; panel.add(valueName, gbc);
+
+        JButton reloadButton = new JButton("Reload with Normalization Settings");
+        gbc.gridx=0; gbc.gridy=4; gbc.gridwidth=2; panel.add(reloadButton, gbc);
+
+        if (fileNum == 1) {
+            identifierList1 = identifierList;
+            valueList1 = valueList;
+            categoryName1 = categoryName;
+            valueName1 = valueName;
+            reloadButton.addActionListener(e -> sheet1Changed(null));
+        } else {
+            identifierList2 = identifierList;
+            valueList2 = valueList;
+            categoryName2 = categoryName;
+            valueName2 = valueName;
+            reloadButton.addActionListener(e -> sheet2Changed(null));
+        }
+        return panel;
+    }
+
+    private JPanel createOptionsPanel() {
         JPanel optionsPanel = new JPanel(new BorderLayout(5, 5));
         optionsPanel.setBorder(BorderFactory.createTitledBorder("Comparison Options"));
 
-        // Column Mappings UI
         columnMappingPanel = new JPanel();
         columnMappingPanel.setLayout(new BoxLayout(columnMappingPanel, BoxLayout.Y_AXIS));
         JScrollPane mappingScrollPane = new JScrollPane(columnMappingPanel);
 
         JButton addMappingButton = new JButton("+ Add Key");
+        addMappingButton.addActionListener(e -> addMappingRow());
 
         JPanel mappingContainer = new JPanel(new BorderLayout());
         mappingContainer.add(new JLabel("Map Key Columns:", SwingConstants.CENTER), BorderLayout.NORTH);
@@ -117,7 +198,6 @@ public class ExcelComparator extends JFrame {
 
         optionsPanel.add(mappingContainer, BorderLayout.CENTER);
 
-        // Checkboxes
         JPanel checkboxPanel = new JPanel(new GridLayout(3, 1));
         columnLevelComparison = new JCheckBox("Column-level comparison", true);
         detectMissingExtraRows = new JCheckBox("Detect missing/extra rows", true);
@@ -125,9 +205,11 @@ public class ExcelComparator extends JFrame {
         checkboxPanel.add(detectMissingExtraRows);
         optionsPanel.add(checkboxPanel, BorderLayout.WEST);
 
-        bottomSplit.setLeftComponent(optionsPanel);
+        addMappingRow();
+        return optionsPanel;
+    }
 
-        // Bottom panel for results and actions
+    private JPanel createResultsPanel() {
         JPanel resultsPanel = new JPanel(new BorderLayout());
         resultsPanel.setBorder(BorderFactory.createTitledBorder("Results"));
         resultsTable = new JTable();
@@ -135,63 +217,42 @@ public class ExcelComparator extends JFrame {
 
         JPanel actionPanel = new JPanel();
         JButton runButton = new JButton("Run Comparison");
+        runButton.addActionListener(this::runComparison);
         JButton exportButton = new JButton("Export to Excel");
+        exportButton.addActionListener(this::exportResults);
         actionPanel.add(runButton);
         actionPanel.add(exportButton);
         resultsPanel.add(actionPanel, BorderLayout.SOUTH);
-
-        bottomSplit.setRightComponent(resultsPanel);
-
-        add(mainPanel);
-
-        // Add action listeners
-        file1Button.addActionListener(this::chooseFile1);
-        file2Button.addActionListener(this::chooseFile2);
-        sheet1ComboBox.addActionListener(this::sheet1Changed);
-        sheet2ComboBox.addActionListener(this::sheet2Changed);
-        headerRowsSpinner1.addChangeListener(e -> sheet1Changed(null));
-        headerRowsSpinner2.addChangeListener(e -> sheet2Changed(null));
-        addMappingButton.addActionListener(e -> addMappingRow());
-        runButton.addActionListener(this::runComparison);
-        exportButton.addActionListener(this::exportResults);
-
-        // Initial mapping row
-        addMappingRow();
+        return resultsPanel;
     }
 
     private void chooseFile1(ActionEvent e) {
         JFileChooser fileChooser = new JFileChooser();
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             file1 = fileChooser.getSelectedFile();
-            try {
-                List<String> sheetNames = ExcelUtil.getSheetNames(file1);
-                sheet1ComboBox.setModel(new DefaultComboBoxModel<>(sheetNames.toArray(new String[0])));
-                sheet1ComboBox.setEnabled(true);
-                if (!sheetNames.isEmpty()) {
-                    loadSheetData(1, sheetNames.get(0));
-                }
-            } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
+            updatePostFileSelection(1, file1, sheet1ComboBox, identifierList1, valueList1);
         }
     }
 
     private void chooseFile2(ActionEvent e) {
         JFileChooser fileChooser = new JFileChooser();
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
+        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             file2 = fileChooser.getSelectedFile();
-            try {
-                List<String> sheetNames = ExcelUtil.getSheetNames(file2);
-                sheet2ComboBox.setModel(new DefaultComboBoxModel<>(sheetNames.toArray(new String[0])));
-                sheet2ComboBox.setEnabled(true);
-                if (!sheetNames.isEmpty()) {
-                    loadSheetData(2, sheetNames.get(0));
-                }
-            } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            updatePostFileSelection(2, file2, sheet2ComboBox, identifierList2, valueList2);
+        }
+    }
+
+    private void updatePostFileSelection(int fileNum, File file, JComboBox<String> sheetComboBox, JList<String> idList, JList<String> valList) {
+        try {
+            List<String> sheetNames = ExcelUtil.getSheetNames(file);
+            sheetComboBox.setModel(new DefaultComboBoxModel<>(sheetNames.toArray(new String[0])));
+            sheetComboBox.setEnabled(true);
+            if (!sheetNames.isEmpty()) {
+                // This will trigger sheetChanged event which calls loadSheetData
+                sheetComboBox.setSelectedIndex(0);
             }
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -212,12 +273,30 @@ public class ExcelComparator extends JFrame {
     private void loadSheetData(int fileNum, String sheetName) {
         File file = (fileNum == 1) ? file1 : file2;
         JSpinner spinner = (fileNum == 1) ? headerRowsSpinner1 : headerRowsSpinner2;
+        JCheckBox chkNormalize = (fileNum == 1) ? chkNormalize1 : chkNormalize2;
         if (file == null) return;
 
         int headerRows = (Integer) spinner.getValue();
 
         try {
-            ExcelUtil.ExcelData data = ExcelUtil.readExcel(file, sheetName, headerRows, -1);
+            ExcelUtil.ExcelData data;
+            if (chkNormalize.isSelected()) {
+                // First read raw data to populate JLists
+                ExcelUtil.ExcelData rawData = ExcelUtil.readExcel(file, sheetName, headerRows, -1);
+                if (fileNum == 1) populateNormalizeLists(identifierList1, valueList1, rawData);
+                else populateNormalizeLists(identifierList2, valueList2, rawData);
+
+                NormalizationConfig config = getNormalizationConfig(fileNum);
+                // only proceed if config is valid
+                if(config.getIdentifierColumns().isEmpty() || config.getValueColumns().isEmpty()){
+                    data = rawData; // show raw data until config is complete
+                } else {
+                    data = ExcelUtil.readAndNormalize(file, sheetName, headerRows, config);
+                }
+            } else {
+                data = ExcelUtil.readExcel(file, sheetName, headerRows, -1);
+            }
+
             if (fileNum == 1) {
                 data1 = data;
                 updatePreviewTable(preview1, data1, 10);
@@ -226,8 +305,24 @@ public class ExcelComparator extends JFrame {
                 updatePreviewTable(preview2, data2, 10);
             }
             updateColumnMappings();
-        } catch (IOException ex) {
-            JOptionPane.showMessageDialog(this, "Error reading sheet '" + sheetName + "': " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error processing sheet '" + sheetName + "': " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private NormalizationConfig getNormalizationConfig(int fileNum) {
+        if (fileNum == 1) {
+            return new NormalizationConfig(identifierList1.getSelectedValuesList(), valueList1.getSelectedValuesList(), categoryName1.getText(), valueName1.getText());
+        } else {
+            return new NormalizationConfig(identifierList2.getSelectedValuesList(), valueList2.getSelectedValuesList(), categoryName2.getText(), valueName2.getText());
+        }
+    }
+
+    private void populateNormalizeLists(JList<String> idList, JList<String> valList, ExcelUtil.ExcelData data) {
+        if (data != null) {
+            String[] headers = new LinkedHashSet<>(data.getHeaders()).toArray(new String[0]);
+            idList.setListData(headers);
+            valList.setListData(headers);
         }
     }
 
@@ -332,6 +427,7 @@ public class ExcelComparator extends JFrame {
 
     private List<Integer> getAllIndices(List<String> headers, String header) {
         List<Integer> indices = new ArrayList<>();
+        if (headers == null) return indices;
         for (int i = 0; i < headers.size(); i++) {
             if (header.equals(headers.get(i))) {
                 indices.add(i);
