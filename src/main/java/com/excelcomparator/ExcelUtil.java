@@ -9,6 +9,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -113,95 +114,120 @@ public class ExcelUtil {
         return new ExcelData(headers, data);
     }
 
+    private static class HeaderAnalysisResult {
+        final List<String> identifierColumns = new ArrayList<>();
+        final Map<String, List<String>> groupedColumns = new LinkedHashMap<>();
+        final List<String> allOriginalHeaders;
+
+        HeaderAnalysisResult(List<String> allOriginalHeaders) {
+            this.allOriginalHeaders = allOriginalHeaders;
+        }
+    }
+
+    private static HeaderAnalysisResult analyzeHeaders(Sheet sheet, int headerRows, int maxCols) {
+        List<String> tempHeaders = new ArrayList<>();
+         Map<Integer, StringBuilder> headerBuilders = new TreeMap<>();
+
+        for (int i = 0; i < headerRows; i++) {
+            Row headerRow = sheet.getRow(i);
+            for (int j = 0; j < maxCols; j++) {
+                Cell cell = headerRow != null ? headerRow.getCell(j) : null;
+                String cellValue = getCellValueFromMergedRegion(sheet, i, j, sheet.getMergedRegions()).trim();
+                StringBuilder sb = headerBuilders.computeIfAbsent(j, k -> new StringBuilder());
+                if (!cellValue.isEmpty()) {
+                    if (sb.length() > 0) {
+                        sb.append(" | ");
+                    }
+                    sb.append(cellValue);
+                }
+            }
+        }
+        for (int i = 0; i < maxCols; i++) {
+            tempHeaders.add(headerBuilders.getOrDefault(i, new StringBuilder()).toString());
+        }
+
+        HeaderAnalysisResult result = new HeaderAnalysisResult(tempHeaders);
+        boolean[] isGrouped = new boolean[maxCols];
+
+        if (headerRows > 1) {
+            for (int r = 0; r < headerRows - 1; r++) {
+                for (CellRangeAddress region : sheet.getMergedRegions()) {
+                    if (region.getFirstRow() == r && region.getLastRow() == r && region.getFirstColumn() != region.getLastColumn()) {
+                        String groupName = getCellValueAsString(sheet.getRow(r).getCell(region.getFirstColumn()));
+                        List<String> children = new ArrayList<>();
+                        for (int c = region.getFirstColumn(); c <= region.getLastColumn(); c++) {
+                            children.add(result.allOriginalHeaders.get(c));
+                            isGrouped[c] = true;
+                        }
+                        result.groupedColumns.put(groupName, children);
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < maxCols; i++) {
+            if (!isGrouped[i]) {
+                result.identifierColumns.add(result.allOriginalHeaders.get(i));
+            }
+        }
+        return result;
+    }
+
     public static ExcelData readAndAutoNormalize(File file, String sheetName, int headerRows) throws IOException {
-        // First, get the raw data and headers
-        ExcelData rawData = readExcel(file, sheetName, headerRows, -1);
-        List<String> originalHeaders = rawData.getHeaders();
-        List<List<Object>> originalData = rawData.getData();
-
-        // --- Automated Header Analysis ---
-        List<String> identifierColumns = new ArrayList<>();
-        List<String> valueColumns = new ArrayList<>();
-
         try (Workbook workbook = WorkbookFactory.create(file)) {
             Sheet sheet = workbook.getSheet(sheetName);
-            if (sheet == null) {
-                throw new IOException("Sheet '" + sheetName + "' not found.");
+            if (sheet == null) throw new IOException("Sheet '" + sheetName + "' not found.");
+
+            int maxCols = 0;
+            for (int i = 0; i < headerRows; i++) {
+                Row headerRow = sheet.getRow(i);
+                if (headerRow != null) maxCols = Math.max(maxCols, headerRow.getLastCellNum());
             }
 
-            boolean[] isValueColumn = new boolean[originalHeaders.size()];
+            HeaderAnalysisResult analysis = analyzeHeaders(sheet, headerRows, maxCols);
 
-            if (headerRows > 0) {
-                for (CellRangeAddress region : sheet.getMergedRegions()) {
-                    if (region.getLastRow() < headerRows) {
-                        if (region.getFirstColumn() != region.getLastColumn()) {
-                            for (int i = region.getFirstColumn(); i <= region.getLastColumn(); i++) {
-                                if (i < isValueColumn.length) {
-                                    isValueColumn[i] = true;
-                                }
-                            }
+            if (analysis.groupedColumns.isEmpty()) {
+                return readExcel(file, sheetName, headerRows, -1); // No groups, return raw data
+            }
+
+            List<String> newHeaders = new ArrayList<>(analysis.identifierColumns);
+            newHeaders.add("Group Name");
+            newHeaders.add("Child Dimension");
+
+            List<List<Object>> newData = new ArrayList<>();
+            List<List<Object>> originalData = readExcel(file, sheetName, headerRows, -1).getData();
+
+            List<Integer> identifierIndices = analysis.identifierColumns.stream()
+                .map(analysis.allOriginalHeaders::indexOf)
+                .collect(Collectors.toList());
+
+            for (List<Object> row : originalData) {
+                List<Object> identifierValues = new ArrayList<>();
+                for (int index : identifierIndices) {
+                    identifierValues.add(index < row.size() ? row.get(index) : "");
+                }
+
+                for (Map.Entry<String, List<String>> groupEntry : analysis.groupedColumns.entrySet()) {
+                    String groupName = groupEntry.getKey();
+                    for (String childHeader : groupEntry.getValue()) {
+                        int childIndex = analysis.allOriginalHeaders.indexOf(childHeader);
+                        Object cellValue = (childIndex != -1 && childIndex < row.size()) ? row.get(childIndex) : null;
+
+                        String cellContent = (cellValue != null) ? cellValue.toString().trim() : "";
+                        if (!cellContent.isEmpty()) {
+                            List<Object> newRow = new ArrayList<>(identifierValues);
+                            newRow.add(groupName);
+                            newRow.add(childHeader);
+                            newData.add(newRow);
                         }
                     }
                 }
             }
 
-            for (int i = 0; i < originalHeaders.size(); i++) {
-                if (isValueColumn[i]) {
-                    valueColumns.add(originalHeaders.get(i));
-                } else {
-                    identifierColumns.add(originalHeaders.get(i));
-                }
-            }
+            return new ExcelData(newHeaders, newData);
         } catch (Exception e) {
-            throw new IOException("Failed during header analysis: " + e.getMessage(), e);
+            throw new IOException("Failed to read and normalize Excel file: " + e.getMessage(), e);
         }
-
-        if (valueColumns.isEmpty()) {
-            return rawData; // Nothing to normalize, return as-is.
-        }
-
-        // --- Automated Un-Pivoting Transformation ---
-        List<String> newHeaders = new ArrayList<>(identifierColumns);
-        newHeaders.add("Dimension");
-        newHeaders.add("Applicable");
-
-        List<List<Object>> newData = new ArrayList<>();
-
-        // Get indices for faster lookup
-        List<Integer> identifierIndices = identifierColumns.stream()
-            .map(originalHeaders::indexOf).collect(Collectors.toList());
-        List<Integer> valueIndices = valueColumns.stream()
-            .map(originalHeaders::indexOf).collect(Collectors.toList());
-
-        for (List<Object> row : originalData) {
-            // Extract identifier values for the current row
-            List<Object> identifierValues = new ArrayList<>();
-            for (int index : identifierIndices) {
-                identifierValues.add(index < row.size() ? row.get(index) : "");
-            }
-
-            // Un-pivot the value columns
-            for (int valueIndex : valueIndices) {
-                List<Object> newRow = new ArrayList<>(identifierValues);
-
-                // Add Dimension (the header of the value column)
-                newRow.add(originalHeaders.get(valueIndex));
-
-                // Add Applicable (Yes/No based on cell content)
-                Object cellValue = valueIndex < row.size() ? row.get(valueIndex) : null;
-                String cellContent = (cellValue != null) ? cellValue.toString().trim() : "";
-
-                if (!cellContent.isEmpty()) {
-                    newRow.add("Yes");
-                } else {
-                    newRow.add("No");
-                }
-
-                newData.add(newRow);
-            }
-        }
-
-        return new ExcelData(newHeaders, newData);
     }
 
 

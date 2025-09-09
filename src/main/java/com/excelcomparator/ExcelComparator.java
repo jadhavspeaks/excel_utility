@@ -101,7 +101,7 @@ public class ExcelComparator extends JFrame {
         topControls.add(controlsPanel, BorderLayout.WEST);
         topControls.add(sheetComboBox, BorderLayout.CENTER);
 
-        JCheckBox chkNormalize = new JCheckBox("Enable Automated Normalization");
+        JCheckBox chkNormalize = new JCheckBox("Enable Normalization (Transpose ticked rows)");
         chkNormalize.addActionListener(e -> {
             if (fileNum == 1) sheet1Changed(null); else sheet2Changed(null);
         });
