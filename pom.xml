@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.excelcomparator</groupId>
-    <artifactId>excel-filter</artifactId>
+    <artifactId>excel-comparator</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
@@ -46,7 +46,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.excelcomparator.ExcelFilterApp</mainClass>
+                            <mainClass>com.excelcomparator.ExcelComparator</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
