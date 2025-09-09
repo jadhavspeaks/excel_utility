@@ -64,6 +64,18 @@ public class ExcelComparator extends JFrame {
         bottomSplit.setRightComponent(createResultsPanel());
 
         add(mainPanel);
+
+        // --- Menu Bar ---
+        JMenuBar menuBar = new JMenuBar();
+        JMenu toolsMenu = new JMenu("Tools");
+        JMenuItem filterToolItem = new JMenuItem("Filtering Tool");
+        filterToolItem.addActionListener(e -> {
+            // TODO: Launch the new JDialog for the filtering tool
+            JOptionPane.showMessageDialog(this, "Filtering Tool will be launched from here.", "Info", JOptionPane.INFORMATION_MESSAGE);
+        });
+        toolsMenu.add(filterToolItem);
+        menuBar.add(toolsMenu);
+        setJMenuBar(menuBar);
     }
 
     private JPanel createFilePanel(int fileNum) {
@@ -155,6 +167,18 @@ public class ExcelComparator extends JFrame {
         columnMappingPanel.add(row);
         columnMappingPanel.revalidate();
         columnMappingPanel.repaint();
+
+        // --- Menu Bar ---
+        JMenuBar menuBar = new JMenuBar();
+        JMenu toolsMenu = new JMenu("Tools");
+        JMenuItem filterToolItem = new JMenuItem("Filtering Tool");
+        filterToolItem.addActionListener(e -> {
+            FilteringDialog filterDialog = new FilteringDialog(this);
+            filterDialog.setVisible(true);
+        });
+        toolsMenu.add(filterToolItem);
+        menuBar.add(toolsMenu);
+        setJMenuBar(menuBar);
     }
 
     private void updateColumnMappings() {
@@ -194,6 +218,9 @@ public class ExcelComparator extends JFrame {
         actionPanel.add(runButton);
         actionPanel.add(exportButton);
         actionPanel.add(clearButton);
+        JButton exitButton = new JButton("Exit");
+        exitButton.addActionListener(e -> System.exit(0));
+        actionPanel.add(exitButton);
         panel.add(actionPanel, BorderLayout.SOUTH);
         return panel;
     }

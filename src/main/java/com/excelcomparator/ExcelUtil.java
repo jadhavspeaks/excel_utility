@@ -136,12 +136,14 @@ public class ExcelUtil {
                 identifierValues.add(index < row.size() ? row.get(index) : "");
             }
             for (int valueIndex : valueIndices) {
-                List<Object> newRow = new ArrayList<>(identifierValues);
-                newRow.add(originalHeaders.get(valueIndex));
                 Object cellValue = valueIndex < row.size() ? row.get(valueIndex) : null;
-                newRow.add(cellValue != null && !cellValue.toString().trim().isEmpty() ? "Yes" : "No");
-                newData.add(newRow);
-                newRowNumbers.add(originalRowNum);
+                if (cellValue != null && !cellValue.toString().trim().isEmpty()) {
+                    List<Object> newRow = new ArrayList<>(identifierValues);
+                    newRow.add(originalHeaders.get(valueIndex));
+                    newRow.add("Yes");
+                    newData.add(newRow);
+                    newRowNumbers.add(originalRowNum);
+                }
             }
         }
         return new ExcelData(newHeaders, newData, newRowNumbers);
@@ -286,5 +288,32 @@ public class ExcelUtil {
         else if (value instanceof Date) cell.setCellValue((Date) value);
         else if (value instanceof Boolean) cell.setCellValue((Boolean) value);
         else if (value != null) cell.setCellValue(value.toString());
+    }
+
+    public static void writeFilteredDataToExcel(ExcelData excelData, File file) throws IOException {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Filtered Data");
+
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < excelData.getHeaders().size(); i++) {
+                headerRow.createCell(i).setCellValue(excelData.getHeaders().get(i));
+            }
+
+            int rowNum = 1;
+            for (List<Object> dataRow : excelData.getData()) {
+                Row row = sheet.createRow(rowNum++);
+                for (int i = 0; i < dataRow.size(); i++) {
+                    setCellValue(row.createCell(i), dataRow.get(i));
+                }
+            }
+
+            for (int i = 0; i < excelData.getHeaders().size(); i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            try (FileOutputStream fileOut = new FileOutputStream(file)) {
+                workbook.write(fileOut);
+            }
+        }
     }
 }
