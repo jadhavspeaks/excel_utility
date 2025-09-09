@@ -15,11 +15,10 @@ import java.util.Map;
 
 public class ExcelComparator extends JFrame {
 
-    private JTable preview1;
-    private JTable preview2;
-    private JTable resultsTable;
-    private ExcelUtil.ExcelData data1;
-    private ExcelUtil.ExcelData data2;
+    private JTable preview1, preview2, resultsTable;
+    private ExcelUtil.ExcelData data1, data2;
+    private File file1, file2;
+    private JComboBox<String> sheet1ComboBox, sheet2ComboBox;
 
     private JPanel columnMappingPanel;
     private List<JComboBox<String>> file1ColumnDropdowns;
@@ -29,7 +28,6 @@ public class ExcelComparator extends JFrame {
     private JCheckBox detectMissingExtraRows;
 
     private ComparisonResult lastResult;
-
 
     public ExcelComparator() {
         setTitle("Excel Comparator");
@@ -41,49 +39,63 @@ public class ExcelComparator extends JFrame {
         file2ColumnDropdowns = new ArrayList<>();
 
         // Main panel
-        JPanel mainPanel = new JPanel(new BorderLayout());
+        JPanel mainPanel = new JPanel(new BorderLayout(5, 5));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
         // Top panel for file choosers
-        JPanel topPanel = new JPanel(new GridLayout(1, 2));
-        // File 1
-        JPanel file1Panel = new JPanel();
+        JPanel topPanel = new JPanel(new GridLayout(1, 2, 5, 5));
+
+        // File 1 Panel
+        JPanel file1Panel = new JPanel(new BorderLayout());
         file1Panel.setBorder(BorderFactory.createTitledBorder("File 1"));
-        JButton file1Button = new JButton("Choose File 1");
-        file1Panel.add(file1Button);
+        JButton file1Button = new JButton("Choose File...");
+        sheet1ComboBox = new JComboBox<>();
+        sheet1ComboBox.setEnabled(false);
+        file1Panel.add(file1Button, BorderLayout.WEST);
+        file1Panel.add(sheet1ComboBox, BorderLayout.CENTER);
         topPanel.add(file1Panel);
 
-        // File 2
-        JPanel file2Panel = new JPanel();
+        // File 2 Panel
+        JPanel file2Panel = new JPanel(new BorderLayout());
         file2Panel.setBorder(BorderFactory.createTitledBorder("File 2"));
-        JButton file2Button = new JButton("Choose File 2");
-        file2Panel.add(file2Button);
+        JButton file2Button = new JButton("Choose File...");
+        sheet2ComboBox = new JComboBox<>();
+        sheet2ComboBox.setEnabled(false);
+        file2Panel.add(file2Button, BorderLayout.WEST);
+        file2Panel.add(sheet2ComboBox, BorderLayout.CENTER);
         topPanel.add(file2Panel);
 
         mainPanel.add(topPanel, BorderLayout.NORTH);
 
         // Center panel for previews and options
-        JPanel centerPanel = new JPanel(new BorderLayout());
+        JSplitPane centerSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        centerSplit.setResizeWeight(0.7);
+        mainPanel.add(centerSplit, BorderLayout.CENTER);
 
         // Preview tables
-        JPanel previewPanel = new JPanel(new GridLayout(1, 2));
+        JPanel previewPanel = new JPanel(new GridLayout(1, 2, 5, 5));
+        previewPanel.setBorder(BorderFactory.createTitledBorder("Preview (First 10 Rows)"));
         preview1 = new JTable();
         previewPanel.add(new JScrollPane(preview1));
         preview2 = new JTable();
         previewPanel.add(new JScrollPane(preview2));
-        centerPanel.add(previewPanel, BorderLayout.CENTER);
+        centerSplit.setTopComponent(previewPanel);
+
+        // Bottom component with options and results
+        JSplitPane bottomSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+        bottomSplit.setResizeWeight(0.4);
+        centerSplit.setBottomComponent(bottomSplit);
 
         // Options Panel
-        JPanel optionsPanel = new JPanel(new BorderLayout());
+        JPanel optionsPanel = new JPanel(new BorderLayout(5, 5));
         optionsPanel.setBorder(BorderFactory.createTitledBorder("Comparison Options"));
 
         // Column Mappings UI
         columnMappingPanel = new JPanel();
         columnMappingPanel.setLayout(new BoxLayout(columnMappingPanel, BoxLayout.Y_AXIS));
         JScrollPane mappingScrollPane = new JScrollPane(columnMappingPanel);
-        mappingScrollPane.setPreferredSize(new Dimension(400, 100));
 
         JButton addMappingButton = new JButton("+ Add Key");
-        addMappingButton.addActionListener(e -> addMappingRow());
 
         JPanel mappingContainer = new JPanel(new BorderLayout());
         mappingContainer.add(new JLabel("Map Key Columns:", SwingConstants.CENTER), BorderLayout.NORTH);
@@ -100,28 +112,31 @@ public class ExcelComparator extends JFrame {
         checkboxPanel.add(detectMissingExtraRows);
         optionsPanel.add(checkboxPanel, BorderLayout.WEST);
 
-        centerPanel.add(optionsPanel, BorderLayout.SOUTH);
-        mainPanel.add(centerPanel, BorderLayout.CENTER);
+        bottomSplit.setLeftComponent(optionsPanel);
 
         // Bottom panel for results and actions
-        JPanel bottomPanel = new JPanel(new BorderLayout());
+        JPanel resultsPanel = new JPanel(new BorderLayout());
+        resultsPanel.setBorder(BorderFactory.createTitledBorder("Results"));
         resultsTable = new JTable();
-        bottomPanel.add(new JScrollPane(resultsTable), BorderLayout.CENTER);
+        resultsPanel.add(new JScrollPane(resultsTable), BorderLayout.CENTER);
 
         JPanel actionPanel = new JPanel();
         JButton runButton = new JButton("Run Comparison");
         JButton exportButton = new JButton("Export to Excel");
         actionPanel.add(runButton);
         actionPanel.add(exportButton);
-        bottomPanel.add(actionPanel, BorderLayout.SOUTH);
+        resultsPanel.add(actionPanel, BorderLayout.SOUTH);
 
-        mainPanel.add(bottomPanel, BorderLayout.SOUTH);
+        bottomSplit.setRightComponent(resultsPanel);
 
         add(mainPanel);
 
         // Add action listeners
         file1Button.addActionListener(this::chooseFile1);
         file2Button.addActionListener(this::chooseFile2);
+        sheet1ComboBox.addActionListener(this::sheet1Changed);
+        sheet2ComboBox.addActionListener(this::sheet2Changed);
+        addMappingButton.addActionListener(e -> addMappingRow());
         runButton.addActionListener(this::runComparison);
         exportButton.addActionListener(this::exportResults);
 
@@ -129,9 +144,78 @@ public class ExcelComparator extends JFrame {
         addMappingRow();
     }
 
+    private void chooseFile1(ActionEvent e) {
+        JFileChooser fileChooser = new JFileChooser();
+        int result = fileChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            file1 = fileChooser.getSelectedFile();
+            try {
+                List<String> sheetNames = ExcelUtil.getSheetNames(file1);
+                sheet1ComboBox.setModel(new DefaultComboBoxModel<>(sheetNames.toArray(new String[0])));
+                sheet1ComboBox.setEnabled(true);
+                if (!sheetNames.isEmpty()) {
+                    loadSheetData(1, sheetNames.get(0));
+                }
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void chooseFile2(ActionEvent e) {
+        JFileChooser fileChooser = new JFileChooser();
+        int result = fileChooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            file2 = fileChooser.getSelectedFile();
+            try {
+                List<String> sheetNames = ExcelUtil.getSheetNames(file2);
+                sheet2ComboBox.setModel(new DefaultComboBoxModel<>(sheetNames.toArray(new String[0])));
+                sheet2ComboBox.setEnabled(true);
+                if (!sheetNames.isEmpty()) {
+                    loadSheetData(2, sheetNames.get(0));
+                }
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void sheet1Changed(ActionEvent e) {
+        String selectedSheet = (String) sheet1ComboBox.getSelectedItem();
+        if (selectedSheet != null) {
+            loadSheetData(1, selectedSheet);
+        }
+    }
+
+    private void sheet2Changed(ActionEvent e) {
+        String selectedSheet = (String) sheet2ComboBox.getSelectedItem();
+        if (selectedSheet != null) {
+            loadSheetData(2, selectedSheet);
+        }
+    }
+
+    private void loadSheetData(int fileNum, String sheetName) {
+        File file = (fileNum == 1) ? file1 : file2;
+        if (file == null) return;
+
+        try {
+            ExcelUtil.ExcelData data = ExcelUtil.readExcel(file, sheetName, -1);
+            if (fileNum == 1) {
+                data1 = data;
+                updatePreviewTable(preview1, data1, 10);
+            } else {
+                data2 = data;
+                updatePreviewTable(preview2, data2, 10);
+            }
+            updateColumnMappings();
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Error reading sheet '" + sheetName + "': " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private void runComparison(ActionEvent e) {
         if (data1 == null || data2 == null) {
-            JOptionPane.showMessageDialog(this, "Please load both Excel files.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Please load both Excel files and select sheets.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -198,7 +282,7 @@ public class ExcelComparator extends JFrame {
 
                 switch (row.getStatus()) {
                     case MISSING_IN_FILE_1:
-                        val = (idx2 != -1 && idx2 < row.getData2().size()) ? row.getData2().get(idx2) : "";
+                        val = (idx2 != -1 && row.getData2() != null && idx2 < row.getData2().size()) ? row.getData2().get(idx2) : "";
                         break;
                     case MISSING_IN_FILE_2:
                         val = (idx1 != -1 && row.getData1() != null && idx1 < row.getData1().size()) ? row.getData1().get(idx1) : "";
@@ -264,41 +348,15 @@ public class ExcelComparator extends JFrame {
         for (JComboBox<String> cb : file1ColumnDropdowns) {
             Object selected = cb.getSelectedItem();
             cb.setModel(new DefaultComboBoxModel<>(headers1));
-            cb.setSelectedItem(selected);
+            if (cb.getItemCount() > 0) {
+                cb.setSelectedItem(selected != null ? selected : cb.getItemAt(0));
+            }
         }
         for (JComboBox<String> cb : file2ColumnDropdowns) {
             Object selected = cb.getSelectedItem();
             cb.setModel(new DefaultComboBoxModel<>(headers2));
-            cb.setSelectedItem(selected);
-        }
-    }
-
-    private void chooseFile1(ActionEvent e) {
-        JFileChooser fileChooser = new JFileChooser();
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File selectedFile = fileChooser.getSelectedFile();
-            try {
-                data1 = ExcelUtil.readExcel(selectedFile, -1);
-                updatePreviewTable(preview1, data1, 10);
-                updateColumnMappings();
-            } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
-    private void chooseFile2(ActionEvent e) {
-        JFileChooser fileChooser = new JFileChooser();
-        int result = fileChooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            File selectedFile = fileChooser.getSelectedFile();
-            try {
-                data2 = ExcelUtil.readExcel(selectedFile, -1);
-                updatePreviewTable(preview2, data2, 10);
-                updateColumnMappings();
-            } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this, "Error reading file: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            if (cb.getItemCount() > 0) {
+                cb.setSelectedItem(selected != null ? selected : cb.getItemAt(0));
             }
         }
     }

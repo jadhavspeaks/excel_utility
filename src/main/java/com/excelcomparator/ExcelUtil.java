@@ -31,12 +31,33 @@ public class ExcelUtil {
         }
     }
 
-    public static ExcelData readExcel(File file, int numRows) throws IOException {
+    public static List<String> getSheetNames(File file) throws IOException {
+        List<String> sheetNames = new ArrayList<>();
+        try (Workbook workbook = WorkbookFactory.create(file)) {
+            for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                sheetNames.add(workbook.getSheetName(i));
+            }
+        } catch (Exception e) {
+            throw new IOException("Error reading Excel file: " + e.getMessage(), e);
+        }
+        return sheetNames;
+    }
+
+    public static ExcelData readExcel(File file, String sheetName, int numRows) throws IOException {
         List<String> headers = new ArrayList<>();
         List<List<Object>> data = new ArrayList<>();
 
         try (Workbook workbook = WorkbookFactory.create(file)) {
-            Sheet sheet = workbook.getSheetAt(0);
+            Sheet sheet;
+            if (sheetName == null || sheetName.isEmpty()) {
+                sheet = workbook.getSheetAt(0);
+            } else {
+                sheet = workbook.getSheet(sheetName);
+            }
+
+            if (sheet == null) {
+                throw new IOException("Sheet '" + sheetName + "' not found in the workbook.");
+            }
 
             // Read headers
             Row headerRow = sheet.getRow(0);
@@ -116,7 +137,7 @@ public class ExcelUtil {
 
                     switch (resultRow.getStatus()) {
                          case MISSING_IN_FILE_1:
-                            value = (idx2 != -1 && idx2 < resultRow.getData2().size()) ? resultRow.getData2().get(idx2) : "";
+                            value = (idx2 != -1 && resultRow.getData2() != null && idx2 < resultRow.getData2().size()) ? resultRow.getData2().get(idx2) : "";
                             break;
                         case MISSING_IN_FILE_2:
                             value = (idx1 != -1 && resultRow.getData1() != null && idx1 < resultRow.getData1().size()) ? resultRow.getData1().get(idx1) : "";
