@@ -18,14 +18,16 @@ public class SimpleFilterDialog extends JDialog {
     private File inputFile;
     private JTextField inputFilePath;
     private JComboBox<String> sheetCombo;
-    private JComboBox<String> keyColumnCombo;
-    private JTextArea keywordsTextArea;
+    private JSpinner headerRowsSpinner;
     private JTextArea logArea;
     private JButton startButton;
+    private JPanel conditionsPanel;
+    private List<FilterConditionRow> conditionRows = new ArrayList<>();
+
 
     public SimpleFilterDialog(Frame owner) {
-        super(owner, "Simple Keyword Filter", true);
-        setSize(600, 700);
+        super(owner, "Multi-Condition Filter", true);
+        setSize(800, 700);
         setLocationRelativeTo(owner);
         setLayout(new BorderLayout(10, 10));
 
@@ -35,43 +37,51 @@ public class SimpleFilterDialog extends JDialog {
     }
 
     private JPanel createConfigPanel() {
-        JPanel panel = new JPanel();
-        panel.setLayout(new GridBagLayout());
+        JPanel panel = new JPanel(new BorderLayout(10,10));
         panel.setBorder(BorderFactory.createTitledBorder("Configuration"));
+
+        JPanel topPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         // Input File
         gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("Input Excel File:"), gbc);
+        topPanel.add(new JLabel("Input Excel File:"), gbc);
         inputFilePath = new JTextField(30);
         inputFilePath.setEditable(false);
-        gbc.gridx = 1; gbc.gridwidth = 2; panel.add(inputFilePath, gbc);
+        gbc.gridx = 1; gbc.gridwidth = 1; gbc.weightx=1; topPanel.add(inputFilePath, gbc);
         JButton chooseFileButton = new JButton("Choose...");
         chooseFileButton.addActionListener(e -> chooseInputFile());
-        gbc.gridx = 3; gbc.gridwidth = 1; panel.add(chooseFileButton, gbc);
+        gbc.gridx = 2; gbc.gridwidth = 1; gbc.weightx=0; topPanel.add(chooseFileButton, gbc);
+
+        // Header Row Selection
+        gbc.gridx = 0; gbc.gridy = 1;
+        topPanel.add(new JLabel("Header Rows:"), gbc);
+        headerRowsSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+        headerRowsSpinner.addChangeListener(e -> loadColumnsForSheet());
+        gbc.gridx = 1; topPanel.add(headerRowsSpinner, gbc);
 
         // Sheet Selection
-        gbc.gridx = 0; gbc.gridy = 1;
-        panel.add(new JLabel("Sheet to Filter:"), gbc);
+        gbc.gridx = 0; gbc.gridy = 2;
+        topPanel.add(new JLabel("Sheet to Filter:"), gbc);
         sheetCombo = new JComboBox<>();
         sheetCombo.addActionListener(e -> loadColumnsForSheet());
-        gbc.gridx = 1; gbc.gridwidth = 3; panel.add(sheetCombo, gbc);
+        gbc.gridx = 1; gbc.gridwidth = 2; topPanel.add(sheetCombo, gbc);
 
-        // Key Column
-        gbc.gridx = 0; gbc.gridy = 2;
-        panel.add(new JLabel("Key Column:"), gbc);
-        keyColumnCombo = new JComboBox<>();
-        gbc.gridx = 1; gbc.gridwidth = 3; panel.add(keyColumnCombo, gbc);
+        panel.add(topPanel, BorderLayout.NORTH);
 
-        // Keywords
-        gbc.gridx = 0; gbc.gridy = 3; gbc.anchor = GridBagConstraints.NORTHWEST;
-        panel.add(new JLabel("Keywords (one per line):"), gbc);
-        keywordsTextArea = new JTextArea(10, 30);
-        gbc.gridx = 1; gbc.gridy = 3; gbc.gridwidth = 3; gbc.fill = GridBagConstraints.BOTH;
-        panel.add(new JScrollPane(keywordsTextArea), gbc);
+        // Conditions Panel
+        conditionsPanel = new JPanel();
+        conditionsPanel.setLayout(new BoxLayout(conditionsPanel, BoxLayout.Y_AXIS));
+        conditionsPanel.setBorder(BorderFactory.createTitledBorder("Filter Conditions (AND)"));
+        panel.add(new JScrollPane(conditionsPanel), BorderLayout.CENTER);
 
+        JButton addConditionButton = new JButton("Add Condition");
+        addConditionButton.addActionListener(e -> addConditionRow());
+        panel.add(addConditionButton, BorderLayout.SOUTH);
+
+        addConditionRow(); // Start with one condition
 
         return panel;
     }
@@ -134,21 +144,42 @@ public class SimpleFilterDialog extends JDialog {
         worker.execute();
     }
 
+    private void addConditionRow() {
+        FilterConditionRow newRow = new FilterConditionRow(new ArrayList<>());
+        JButton removeButton = new JButton("Remove");
+        newRow.add(removeButton);
+        removeButton.addActionListener(e -> {
+            conditionsPanel.remove(newRow);
+            conditionRows.remove(newRow);
+            conditionsPanel.revalidate();
+            conditionsPanel.repaint();
+        });
+        conditionRows.add(newRow);
+        conditionsPanel.add(newRow);
+        conditionsPanel.revalidate();
+        conditionsPanel.repaint();
+        loadColumnsForSheet(); // To populate the new row with columns if already loaded
+    }
+
     private void loadColumnsForSheet() {
         String selectedSheet = (String) sheetCombo.getSelectedItem();
         if (inputFile == null || selectedSheet == null) return;
 
+        int headerRows = (int) headerRowsSpinner.getValue();
+
         SwingWorker<List<String>, Void> worker = new SwingWorker<>() {
             @Override
             protected List<String> doInBackground() throws Exception {
-                return ExcelUtil.getHeaders(inputFile, selectedSheet);
+                return ExcelUtil.getHeaders(inputFile, selectedSheet, headerRows);
             }
 
             @Override
             protected void done() {
                 try {
                     List<String> headers = get();
-                    keyColumnCombo.setModel(new DefaultComboBoxModel<>(headers.toArray(new String[0])));
+                    for (FilterConditionRow row : conditionRows) {
+                        row.setColumnNames(headers);
+                    }
                 } catch (Exception e) {
                     log("Error loading columns: " + e.getMessage());
                 }
@@ -158,31 +189,40 @@ public class SimpleFilterDialog extends JDialog {
     }
 
     private void startFiltering() {
-        if (inputFile == null || sheetCombo.getSelectedItem() == null || keyColumnCombo.getSelectedItem() == null || keywordsTextArea.getText().isBlank()) {
-            JOptionPane.showMessageDialog(this, "Please fill all fields.", "Configuration Error", JOptionPane.ERROR_MESSAGE);
+        if (inputFile == null || sheetCombo.getSelectedItem() == null) {
+            JOptionPane.showMessageDialog(this, "Please select an input file and sheet.", "Configuration Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Save Filtered Output");
-        fileChooser.setSelectedFile(new File("filtered_output.xlsx"));
-        if (fileChooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+        List<FilterCondition> conditions = new ArrayList<>();
+        for (FilterConditionRow row : conditionRows) {
+            if (row.getValue().isBlank()) {
+                JOptionPane.showMessageDialog(this, "Please ensure all filter condition values are filled in.", "Configuration Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            conditions.add(new FilterCondition(row.getSelectedColumn(), row.getSelectedOperator(), row.getValue()));
+        }
+
+        if (conditions.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please add at least one filter condition.", "Configuration Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        File outputFile = fileChooser.getSelectedFile();
+
+        String outputName = "filtered_" + inputFile.getName();
+        File outputFile = new File(inputFile.getParent(), outputName);
 
         String sheetName = (String) sheetCombo.getSelectedItem();
-        int keyColumnIndex = keyColumnCombo.getSelectedIndex();
-        List<String> keywords = Arrays.asList(keywordsTextArea.getText().split("\\s*\\r?\\n\\s*"));
+        int headerRows = (int) headerRowsSpinner.getValue();
 
         log("Starting filter process...");
+        log("Output will be saved to: " + outputFile.getAbsolutePath());
         startButton.setEnabled(false);
 
-        SwingWorker<Void, String> worker = new SwingWorker<>() {
+        new SwingWorker<Void, String>() {
             @Override
             protected Void doInBackground() throws Exception {
                 ExcelFilter filter = new ExcelFilter();
-                filter.processFile(inputFile, outputFile, sheetName, keyColumnIndex, keywords, this::publish);
+                filter.processFile(inputFile, outputFile, sheetName, headerRows, conditions, this::publish);
                 return null;
             }
 
@@ -198,6 +238,12 @@ public class SimpleFilterDialog extends JDialog {
                 try {
                     get(); // To catch exceptions from doInBackground
                     log("Filter process completed successfully.");
+                    String message = "Filtering complete!\nFile saved at: " + outputFile.getAbsolutePath();
+                    JTextArea textArea = new JTextArea(message);
+                    textArea.setEditable(false);
+                    JScrollPane scrollPane = new JScrollPane(textArea);
+                    scrollPane.setPreferredSize(new Dimension(400, 100));
+                    JOptionPane.showMessageDialog(SimpleFilterDialog.this, scrollPane, "Success", JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception e) {
                     log("Error during filtering: " + e.getMessage());
                     e.printStackTrace();
@@ -206,9 +252,7 @@ public class SimpleFilterDialog extends JDialog {
                     startButton.setEnabled(true);
                 }
             }
-        };
-
-        worker.execute();
+        }.execute();
     }
 
     private void log(String message) {

@@ -41,17 +41,37 @@ public class ExcelUtil {
     }
 
     public static List<String> getHeaders(File file, String sheetName) throws IOException {
+        return getHeaders(file, sheetName, 1);
+    }
+
+    public static List<String> getHeaders(File file, String sheetName, int headerRows) throws IOException {
         List<String> headers = new ArrayList<>();
         try (Workbook workbook = WorkbookFactory.create(file, null, true)) {
             Sheet sheet = workbook.getSheet(sheetName);
             if (sheet == null) {
                 throw new IOException("Sheet not found: " + sheetName);
             }
-            Row headerRow = sheet.getRow(0);
-            if (headerRow != null) {
-                for (Cell cell : headerRow) {
-                    headers.add(getCellValueAsString(cell));
+
+            int maxCols = 0;
+            Map<Integer, StringBuilder> headerBuilders = new TreeMap<>();
+            for (int i = 0; i < headerRows; i++) {
+                Row headerRow = sheet.getRow(i);
+                if (headerRow != null) maxCols = Math.max(maxCols, headerRow.getLastCellNum());
+            }
+
+            for (int i = 0; i < headerRows; i++) {
+                Row headerRow = sheet.getRow(i);
+                for (int j = 0; j < maxCols; j++) {
+                    String cellValue = getCellValueFromMergedRegion(sheet, i, j).trim();
+                    StringBuilder sb = headerBuilders.computeIfAbsent(j, k -> new StringBuilder());
+                    if (!cellValue.isEmpty()) {
+                        if (sb.length() > 0) sb.append(" | ");
+                        sb.append(cellValue);
+                    }
                 }
+            }
+            for (int i = 0; i < maxCols; i++) {
+                headers.add(headerBuilders.getOrDefault(i, new StringBuilder("Column " + (i + 1))).toString());
             }
         } catch (Exception e) {
             throw new IOException("Error reading headers from Excel file: " + e.getMessage(), e);

@@ -35,7 +35,7 @@ public class StreamingExcelProcessor {
     private long rowsWritten = 0;
     private Consumer<String> logger;
 
-    public void processFile(File inputFile, File outputFile, String sheetName, Consumer<String> logger) throws Exception {
+    public void processFile(File inputFile, File outputFile, String sheetName, int headerRows, Consumer<String> logger) throws Exception {
         this.logger = logger;
         this.workbook = new SXSSFWorkbook(100);
         this.sheet = workbook.createSheet("Normalized Data");
@@ -45,7 +45,7 @@ public class StreamingExcelProcessor {
         SharedStrings sharedStrings = reader.getSharedStringsTable();
         XMLReader parser = XMLReaderFactory.createXMLReader();
 
-        ContentHandler handler = new SheetHandler(sharedStrings);
+        ContentHandler handler = new SheetHandler(sharedStrings, headerRows);
         parser.setContentHandler(handler);
 
         boolean sheetFound = false;
@@ -86,17 +86,21 @@ public class StreamingExcelProcessor {
 
     private class SheetHandler extends DefaultHandler {
         private final SharedStrings sharedStrings;
+        private final int headerRows;
+        private int currentRowNumber = 0;
         private String cellValue;
-        private boolean isFirstRow = true;
         private boolean isSharedString;
+        private java.util.Map<Integer, StringBuilder> headerBuilders = new java.util.TreeMap<>();
 
-        private SheetHandler(SharedStrings sst) {
+        private SheetHandler(SharedStrings sst, int headerRows) {
             this.sharedStrings = sst;
+            this.headerRows = headerRows;
         }
 
         public void startElement(String uri, String localName, String name, Attributes attributes) throws SAXException {
             if (name.equals("row")) {
                 currentRow = new ArrayList<>();
+                currentRowNumber++;
             } else if (name.equals("c")) {
                 cellValue = "";
                 String cellType = attributes.getValue("t");
@@ -107,24 +111,39 @@ public class StreamingExcelProcessor {
         public void endElement(String uri, String localName, String name) throws SAXException {
             if (name.equals("v")) {
                 if (isSharedString) {
-                    int idx = Integer.parseInt(cellValue);
-                    cellValue = new XSSFRichTextString(sharedStrings.getItemAt(idx).getString()).toString();
+                    try {
+                        int idx = Integer.parseInt(cellValue);
+                        cellValue = new XSSFRichTextString(sharedStrings.getItemAt(idx).getString()).toString();
+                    } catch (NumberFormatException e) {
+                        // Handle cases where the value is not a valid integer index
+                    }
                 }
             } else if (name.equals("c")) {
                 currentRow.add(cellValue);
             } else if (name.equals("row")) {
-                if (isFirstRow) {
-                    processedRowCount++;
-                    headers.addAll(currentRow);
-                    Row headerRow = sheet.createRow(outputRowNum++);
-                    headerRow.createCell(0).setCellValue("Key");
-                    headerRow.createCell(1).setCellValue("ColumnName");
-                    headerRow.createCell(2).setCellValue("Value");
-                    rowsWritten++;
-                    isFirstRow = false;
+                processedRowCount++;
+                if (currentRowNumber <= headerRows) {
+                    // This is a header row
+                    for (int i = 0; i < currentRow.size(); i++) {
+                        StringBuilder sb = headerBuilders.computeIfAbsent(i, k -> new StringBuilder());
+                        if (sb.length() > 0) sb.append(" | ");
+                        sb.append(currentRow.get(i));
+                    }
+                    if (currentRowNumber == headerRows) {
+                        // Last header row, finalize headers
+                        int maxCols = headerBuilders.keySet().stream().max(Integer::compareTo).orElse(-1) + 1;
+                        for (int i = 0; i < maxCols; i++) {
+                            headers.add(headerBuilders.getOrDefault(i, new StringBuilder()).toString());
+                        }
+                        Row headerRow = sheet.createRow(outputRowNum++);
+                        headerRow.createCell(0).setCellValue("Key");
+                        headerRow.createCell(1).setCellValue("ColumnName");
+                        headerRow.createCell(2).setCellValue("Value");
+                        rowsWritten++;
+                    }
                 } else {
+                    // This is a data row
                     if (!currentRow.isEmpty()) {
-                        processedRowCount++;
                         String key = currentRow.get(0);
                         for (int i = 1; i < currentRow.size(); i++) {
                             String value = currentRow.get(i);

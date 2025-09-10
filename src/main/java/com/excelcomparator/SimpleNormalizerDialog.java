@@ -10,6 +10,7 @@ public class SimpleNormalizerDialog extends JDialog {
     private File inputFile;
     private JTextField inputPath;
     private JComboBox<String> sheetComboBox;
+    private JSpinner headerRowsSpinner;
     private JTextArea logArea;
     private JButton runButton;
 
@@ -35,8 +36,15 @@ public class SimpleNormalizerDialog extends JDialog {
         chooseInputButton.addActionListener(e -> chooseInputFile());
         gbc.gridx = 2; gbc.weightx = 0; mainPanel.add(chooseInputButton, gbc);
 
-        // Sheet selection
+        // Header Row Selection
         gbc.gridx = 0; gbc.gridy = 1;
+        mainPanel.add(new JLabel("Header Rows:"), gbc);
+        headerRowsSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+        gbc.gridx = 1; gbc.gridwidth = 2; mainPanel.add(headerRowsSpinner, gbc);
+        gbc.gridwidth = 1;
+
+        // Sheet selection
+        gbc.gridx = 0; gbc.gridy = 2;
         mainPanel.add(new JLabel("Sheet to Normalize:"), gbc);
         sheetComboBox = new JComboBox<>();
         sheetComboBox.setEnabled(false);
@@ -100,29 +108,22 @@ public class SimpleNormalizerDialog extends JDialog {
             return;
         }
 
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Specify Output Excel File");
-        fileChooser.setSelectedFile(new File(inputFile.getParent(), "normalized_" + inputFile.getName()));
-        if (fileChooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        File outputFile = fileChooser.getSelectedFile();
-         if (!outputFile.getName().toLowerCase().endsWith(".xlsx")) {
-            outputFile = new File(outputFile.getParentFile(), outputFile.getName() + ".xlsx");
-        }
+        String outputName = "normalized_" + inputFile.getName();
+        File outputFile = new File(inputFile.getParent(), outputName);
 
         String selectedSheet = (String) sheetComboBox.getSelectedItem();
+        int headerRows = (int) headerRowsSpinner.getValue();
         logArea.setText("");
         log("Starting normalization for sheet: " + selectedSheet);
+        log("Output will be saved to: " + outputFile.getAbsolutePath());
         setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
         runButton.setEnabled(false);
 
-        File finalOutputFile = outputFile;
         new SwingWorker<Void, String>() {
             @Override
             protected Void doInBackground() throws Exception {
                 StreamingExcelProcessor processor = new StreamingExcelProcessor();
-                processor.processFile(inputFile, finalOutputFile, selectedSheet, this::publish);
+                processor.processFile(inputFile, outputFile, selectedSheet, headerRows, this::publish);
                 return null;
             }
 
@@ -138,7 +139,12 @@ public class SimpleNormalizerDialog extends JDialog {
                 try {
                     get(); // To catch exceptions
                     log("Normalization complete!");
-                    JOptionPane.showMessageDialog(SimpleNormalizerDialog.this, "Normalization complete!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    String message = "Normalization complete!\nFile saved at: " + outputFile.getAbsolutePath();
+                    JTextArea textArea = new JTextArea(message);
+                    textArea.setEditable(false);
+                    JScrollPane scrollPane = new JScrollPane(textArea);
+                    scrollPane.setPreferredSize(new Dimension(400, 100));
+                    JOptionPane.showMessageDialog(SimpleNormalizerDialog.this, scrollPane, "Success", JOptionPane.INFORMATION_MESSAGE);
                 } catch (Exception e) {
                     String errorMsg = (e.getCause() != null) ? e.getCause().getMessage() : e.getMessage();
                     log("An error occurred: " + errorMsg);
