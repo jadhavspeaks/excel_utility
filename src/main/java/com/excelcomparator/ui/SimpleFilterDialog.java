@@ -67,14 +67,12 @@ public class SimpleFilterDialog extends JDialog {
         gbc.gridx = 0; gbc.gridy = 1;
         topPanel.add(new JLabel("Header Rows:"), gbc);
         headerRowsSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
-        headerRowsSpinner.addChangeListener(e -> loadColumnsForSheet());
         gbc.gridx = 1; topPanel.add(headerRowsSpinner, gbc);
 
         // Sheet Selection
         gbc.gridx = 0; gbc.gridy = 2;
         topPanel.add(new JLabel("Sheet to Filter:"), gbc);
         sheetCombo = new JComboBox<>();
-        sheetCombo.addActionListener(e -> loadColumnsForSheet());
         gbc.gridx = 1; gbc.gridwidth = 2; topPanel.add(sheetCombo, gbc);
 
         panel.add(topPanel, BorderLayout.NORTH);
@@ -103,7 +101,10 @@ public class SimpleFilterDialog extends JDialog {
 
     private JPanel createButtonPanel() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        startButton = new JButton("Start Filtering");
+        JButton refreshButton = new JButton("Refresh Preview");
+        refreshButton.addActionListener(e -> loadColumnsForSheet());
+        panel.add(refreshButton);
+        startButton = new JButton("Export Filtered Data");
         startButton.addActionListener(e -> startFiltering());
         panel.add(startButton);
         JButton closeButton = new JButton("Close");
@@ -115,7 +116,18 @@ public class SimpleFilterDialog extends JDialog {
     private void chooseInputFile() {
         JFileChooser fileChooser = new JFileChooser();
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            inputFile = fileChooser.getSelectedFile();
+            File selectedFile = fileChooser.getSelectedFile();
+
+            // Check file size
+            long fileSizeMB = selectedFile.length() / (1024 * 1024);
+            if (fileSizeMB > 100) {
+                JOptionPane.showMessageDialog(this,
+                    "Warning: The selected file is very large (" + fileSizeMB + " MB).\n" +
+                    "The Filter tool is designed to handle large files, but the process may be slow.",
+                    "Large File Warning", JOptionPane.WARNING_MESSAGE);
+            }
+
+            inputFile = selectedFile;
             inputFilePath.setText(inputFile.getAbsolutePath());
             loadSheets();
         }

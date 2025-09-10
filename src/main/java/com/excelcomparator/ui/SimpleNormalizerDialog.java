@@ -52,8 +52,6 @@ public class SimpleNormalizerDialog extends JDialog {
         mainPanel.add(new JLabel("Sheet to Normalize:"), gbc);
         sheetComboBox = new JComboBox<>();
         sheetComboBox.setEnabled(false);
-        sheetComboBox.addActionListener(e -> loadPreviewData());
-        headerRowsSpinner.addChangeListener(e -> loadPreviewData());
         gbc.gridx = 1; gbc.gridwidth = 2; mainPanel.add(sheetComboBox, gbc);
         gbc.gridwidth = 1;
 
@@ -74,7 +72,11 @@ public class SimpleNormalizerDialog extends JDialog {
         add(centerSplitPane, BorderLayout.CENTER);
 
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        runButton = new JButton("Run Normalization");
+        JButton refreshButton = new JButton("Refresh Preview");
+        refreshButton.addActionListener(e -> loadPreviewData());
+        actionPanel.add(refreshButton);
+
+        runButton = new JButton("Export Normalized Data");
         runButton.addActionListener(e -> runNormalization());
         actionPanel.add(runButton);
         add(actionPanel, BorderLayout.SOUTH);
@@ -84,7 +86,18 @@ public class SimpleNormalizerDialog extends JDialog {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle("Select Input Excel File");
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            inputFile = fileChooser.getSelectedFile();
+            File selectedFile = fileChooser.getSelectedFile();
+
+            // Check file size
+            long fileSizeMB = selectedFile.length() / (1024 * 1024);
+            if (fileSizeMB > 100) {
+                JOptionPane.showMessageDialog(this,
+                    "Warning: The selected file is very large (" + fileSizeMB + " MB).\n" +
+                    "The Normalizer is designed to handle large files, but the process may be slow.",
+                    "Large File Warning", JOptionPane.WARNING_MESSAGE);
+            }
+
+            inputFile = selectedFile;
             inputPath.setText(inputFile.getAbsolutePath());
             loadSheets();
         }

@@ -229,6 +229,21 @@ public class ExcelComparator extends JFrame {
         fileChooser.setFileFilter(new FileNameExtensionFilter("Excel Files", "xls", "xlsx"));
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fileChooser.getSelectedFile();
+
+            // Check file size
+            long fileSizeMB = selectedFile.length() / (1024 * 1024);
+            if (fileSizeMB > 50) { // Stricter limit for in-memory processing
+                int response = JOptionPane.showConfirmDialog(this,
+                    "Warning: The selected file is very large (" + fileSizeMB + " MB).\n" +
+                    "Processing this file may cause memory issues or crashes.\n" +
+                    "For very large files, consider using the tools in the 'Tools' menu.\n\n" +
+                    "Do you want to proceed anyway?",
+                    "Large File Warning", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                if (response == JOptionPane.NO_OPTION) {
+                    return;
+                }
+            }
+
             if (fileNum == 1) file1 = selectedFile;
             else file2 = selectedFile;
             try {
