@@ -7,8 +7,8 @@ public class ComparisonResult {
     public enum RowStatus {
         MATCH,
         MISMATCH,
-        MISSING_IN_FILE_2, // Present in File 1, missing in File 2
-        MISSING_IN_FILE_1  // Present in File 2, missing in File 1
+        MISSING_IN_FILE_2,
+        MISSING_IN_FILE_1
     }
 
     public static class ResultRow {

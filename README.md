@@ -9,10 +9,10 @@ A powerful and easy-to-use desktop application built in Java Swing for comparing
 -   **Load Excel Files**: Supports both `.xls` and `.xlsx` file formats.
 -   **Sheet Selection**: Choose the specific sheet to compare from a dropdown menu for each file.
 -   **Multi-Level Header Support**: Can parse headers that span multiple rows, correctly interpreting merged cells to form descriptive column names.
--   **Automated Normalization**: A powerful feature to automatically detect and transform wide-format data into a standard row-based format. It identifies top-level merged headers and un-pivots the columns beneath them into "Dimension" and "Applicable" rows. Only "ticked" (non-empty) cells are included in the normalized output.
+-   **Automated Normalization**: A powerful feature to automatically detect and transform wide-format data into a standard row-based format. It identifies top-level merged headers and un-pivots the columns beneath them.
 -   **Flexible Key Mapping**: Allows users to define one or more columns to use as a composite key for matching rows between the two files.
 -   **Customizable Comparison**:
-    -   **Column-level comparison**: When unchecked (default), performs a detailed comparison and highlights mismatches in all columns. When checked, performs a key-only match and displays only the key columns.
+    -   **Key-only view**: A checkbox to switch between a full, detailed comparison report and a simplified view showing only the mapped key columns.
     -   **Detect missing/extra rows**: Identifies rows that exist in one file but not the other.
 -   **Enhanced Reporting**:
     -   **Column Summary**: The report includes a summary of column differences (added, deleted, common, counts).
@@ -43,7 +43,7 @@ A powerful and easy-to-use desktop application built in Java Swing for comparing
 3.  **Use Normalization (Optional)**: If a file is in a wide format, check the "Enable Automated Normalization" box for that file to transform it before comparison.
 4.  **Map Key Columns**: Use the dropdown menus under "Map Key Columns" to select the columns that uniquely identify a row.
 5.  **Set Options**:
-    -   Leave "Column-level comparison" unchecked for a full detailed comparison.
+    -   Leave "Key-only view" unchecked for a full detailed comparison.
     -   Check it to see a simplified view of only the key columns.
 6.  **Run Comparison**: Click the "Run Comparison" button.
 7.  **View & Export Results**: View the summary and detailed results in the UI, or click "Export to Excel" to save the report.

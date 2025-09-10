@@ -289,31 +289,4 @@ public class ExcelUtil {
         else if (value instanceof Boolean) cell.setCellValue((Boolean) value);
         else if (value != null) cell.setCellValue(value.toString());
     }
-
-    public static void writeFilteredDataToExcel(ExcelData excelData, File file) throws IOException {
-        try (Workbook workbook = new XSSFWorkbook()) {
-            Sheet sheet = workbook.createSheet("Filtered Data");
-
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < excelData.getHeaders().size(); i++) {
-                headerRow.createCell(i).setCellValue(excelData.getHeaders().get(i));
-            }
-
-            int rowNum = 1;
-            for (List<Object> dataRow : excelData.getData()) {
-                Row row = sheet.createRow(rowNum++);
-                for (int i = 0; i < dataRow.size(); i++) {
-                    setCellValue(row.createCell(i), dataRow.get(i));
-                }
-            }
-
-            for (int i = 0; i < excelData.getHeaders().size(); i++) {
-                sheet.autoSizeColumn(i);
-            }
-
-            try (FileOutputStream fileOut = new FileOutputStream(file)) {
-                workbook.write(fileOut);
-            }
-        }
-    }
 }

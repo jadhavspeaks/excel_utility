@@ -65,15 +65,18 @@ public class ExcelComparator extends JFrame {
 
         add(mainPanel);
 
-        // --- Menu Bar ---
         JMenuBar menuBar = new JMenuBar();
         JMenu toolsMenu = new JMenu("Tools");
-        JMenuItem filterToolItem = new JMenuItem("Filtering Tool");
+        JMenuItem filterToolItem = new JMenuItem("Advanced Filter Tool");
         filterToolItem.addActionListener(e -> {
-            // TODO: Launch the new JDialog for the filtering tool
-            JOptionPane.showMessageDialog(this, "Filtering Tool will be launched from here.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            // Placeholder for future feature
         });
-        toolsMenu.add(filterToolItem);
+        JMenuItem simpleNormalizeItem = new JMenuItem("Simple Normalizer");
+        simpleNormalizeItem.addActionListener(e -> {
+            // Placeholder for future feature
+        });
+        toolsMenu.add(simpleNormalizeItem);
+        // toolsMenu.add(filterToolItem); // Add this back when ready
         menuBar.add(toolsMenu);
         setJMenuBar(menuBar);
     }
@@ -134,7 +137,7 @@ public class ExcelComparator extends JFrame {
         panel.add(mappingContainer, BorderLayout.CENTER);
 
         JPanel checkboxPanel = new JPanel(new GridLayout(3, 1));
-        columnLevelComparison = new JCheckBox("Column-level comparison", false);
+        columnLevelComparison = new JCheckBox("Key-only view", false);
         detectMissingExtraRows = new JCheckBox("Detect missing/extra rows", true);
         checkboxPanel.add(columnLevelComparison);
         checkboxPanel.add(detectMissingExtraRows);
@@ -167,18 +170,6 @@ public class ExcelComparator extends JFrame {
         columnMappingPanel.add(row);
         columnMappingPanel.revalidate();
         columnMappingPanel.repaint();
-
-        // --- Menu Bar ---
-        JMenuBar menuBar = new JMenuBar();
-        JMenu toolsMenu = new JMenu("Tools");
-        JMenuItem filterToolItem = new JMenuItem("Filtering Tool");
-        filterToolItem.addActionListener(e -> {
-            FilteringDialog filterDialog = new FilteringDialog(this);
-            filterDialog.setVisible(true);
-        });
-        toolsMenu.add(filterToolItem);
-        menuBar.add(toolsMenu);
-        setJMenuBar(menuBar);
     }
 
     private void updateColumnMappings() {
@@ -215,11 +206,11 @@ public class ExcelComparator extends JFrame {
         exportButton.addActionListener(e -> exportResults());
         JButton clearButton = new JButton("Clear Result");
         clearButton.addActionListener(e -> clearResults());
+        JButton exitButton = new JButton("Exit");
+        exitButton.addActionListener(e -> System.exit(0));
         actionPanel.add(runButton);
         actionPanel.add(exportButton);
         actionPanel.add(clearButton);
-        JButton exitButton = new JButton("Exit");
-        exitButton.addActionListener(e -> System.exit(0));
         actionPanel.add(exitButton);
         panel.add(actionPanel, BorderLayout.SOUTH);
         return panel;
@@ -288,7 +279,7 @@ public class ExcelComparator extends JFrame {
             JOptionPane.showMessageDialog(this, "Please map at least one key column.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        lastResult = ComparatorLogic.compare(data1, data2, keyColumns, columnLevelComparison.isSelected(), detectMissingExtraRows.isSelected());
+        lastResult = ComparatorLogic.compare(data1, data2, keyColumns, !columnLevelComparison.isSelected(), detectMissingExtraRows.isSelected());
         displayResults(lastResult);
     }
 
@@ -302,7 +293,19 @@ public class ExcelComparator extends JFrame {
         displayHeaders.add("Status");
         displayHeaders.add("Mismatched Columns");
 
-        List<String> headersForData = result.getHeaders();
+        List<String> headersForData;
+        if (columnLevelComparison.isSelected()) {
+            headersForData = new ArrayList<>();
+            for (int i = 0; i < file1ColumnDropdowns.size(); i++) {
+                String col1 = (String) file1ColumnDropdowns.get(i).getSelectedItem();
+                String col2 = (String) file2ColumnDropdowns.get(i).getSelectedItem();
+                if (col1 != null && !col1.isEmpty()) headersForData.add(col1);
+                if (col2 != null && !col2.isEmpty()) headersForData.add(col2);
+            }
+            headersForData = new ArrayList<>(new LinkedHashSet<>(headersForData));
+        } else {
+            headersForData = result.getHeaders();
+        }
         displayHeaders.addAll(headersForData);
 
         DefaultTableModel model = new DefaultTableModel(displayHeaders.toArray(new String[0]), 0);
