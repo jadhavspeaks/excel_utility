@@ -50,7 +50,7 @@ public class ComparatorLogic {
 
                 if (compareAllColumns) {
                     List<String> mismatchedCols = new ArrayList<>();
-                    for (String header : unifiedHeaders) {
+                    for (String header : summary.getCommonColumns()) {
                         Object val1 = ExcelUtil.getCombinedValue(row1, ExcelUtil.getAllIndices(headers1, header));
                         Object val2 = ExcelUtil.getCombinedValue(entry2.getValue(), ExcelUtil.getAllIndices(headers2, header));
                         if (!Objects.equals(val1, val2)) {

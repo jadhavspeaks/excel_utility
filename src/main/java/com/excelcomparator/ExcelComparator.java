@@ -67,17 +67,21 @@ public class ExcelComparator extends JFrame {
 
         JMenuBar menuBar = new JMenuBar();
         JMenu toolsMenu = new JMenu("Tools");
-        JMenuItem filterToolItem = new JMenuItem("Advanced Filter Tool");
-        filterToolItem.addActionListener(e -> {
-            // Placeholder for future feature
-        });
+
         JMenuItem simpleNormalizeItem = new JMenuItem("Simple Normalizer");
         simpleNormalizeItem.addActionListener(e -> {
             SimpleNormalizerDialog dialog = new SimpleNormalizerDialog(this);
             dialog.setVisible(true);
         });
         toolsMenu.add(simpleNormalizeItem);
-        // toolsMenu.add(filterToolItem); // Add this back when ready
+
+        JMenuItem simpleFilterItem = new JMenuItem("Simple Keyword Filter");
+        simpleFilterItem.addActionListener(e -> {
+            SimpleFilterDialog dialog = new SimpleFilterDialog(this);
+            dialog.setVisible(true);
+        });
+        toolsMenu.add(simpleFilterItem);
+
         menuBar.add(toolsMenu);
         setJMenuBar(menuBar);
     }
@@ -138,7 +142,7 @@ public class ExcelComparator extends JFrame {
         panel.add(mappingContainer, BorderLayout.CENTER);
 
         JPanel checkboxPanel = new JPanel(new GridLayout(3, 1));
-        columnLevelComparison = new JCheckBox("Key-only view", false);
+        columnLevelComparison = new JCheckBox("Show All Columns", false);
         detectMissingExtraRows = new JCheckBox("Detect missing/extra rows", true);
         checkboxPanel.add(columnLevelComparison);
         checkboxPanel.add(detectMissingExtraRows);
@@ -280,7 +284,7 @@ public class ExcelComparator extends JFrame {
             JOptionPane.showMessageDialog(this, "Please map at least one key column.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        lastResult = ComparatorLogic.compare(data1, data2, keyColumns, !columnLevelComparison.isSelected(), detectMissingExtraRows.isSelected());
+        lastResult = ComparatorLogic.compare(data1, data2, keyColumns, columnLevelComparison.isSelected(), detectMissingExtraRows.isSelected());
         displayResults(lastResult);
     }
 
@@ -296,6 +300,8 @@ public class ExcelComparator extends JFrame {
 
         List<String> headersForData;
         if (columnLevelComparison.isSelected()) {
+            headersForData = result.getHeaders();
+        } else {
             headersForData = new ArrayList<>();
             for (int i = 0; i < file1ColumnDropdowns.size(); i++) {
                 String col1 = (String) file1ColumnDropdowns.get(i).getSelectedItem();
@@ -304,8 +310,6 @@ public class ExcelComparator extends JFrame {
                 if (col2 != null && !col2.isEmpty()) headersForData.add(col2);
             }
             headersForData = new ArrayList<>(new LinkedHashSet<>(headersForData));
-        } else {
-            headersForData = result.getHeaders();
         }
         displayHeaders.addAll(headersForData);
 

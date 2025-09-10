@@ -40,6 +40,25 @@ public class ExcelUtil {
         return sheetNames;
     }
 
+    public static List<String> getHeaders(File file, String sheetName) throws IOException {
+        List<String> headers = new ArrayList<>();
+        try (Workbook workbook = WorkbookFactory.create(file, null, true)) {
+            Sheet sheet = workbook.getSheet(sheetName);
+            if (sheet == null) {
+                throw new IOException("Sheet not found: " + sheetName);
+            }
+            Row headerRow = sheet.getRow(0);
+            if (headerRow != null) {
+                for (Cell cell : headerRow) {
+                    headers.add(getCellValueAsString(cell));
+                }
+            }
+        } catch (Exception e) {
+            throw new IOException("Error reading headers from Excel file: " + e.getMessage(), e);
+        }
+        return headers;
+    }
+
     public static ExcelData readExcel(File file, String sheetName, int headerRows, int numRows) throws IOException {
         List<String> headers = new ArrayList<>();
         List<List<Object>> data = new ArrayList<>();
