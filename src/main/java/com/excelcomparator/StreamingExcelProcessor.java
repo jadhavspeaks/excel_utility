@@ -19,6 +19,9 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
+
+import org.xml.sax.helpers.XMLReaderFactory;
 
 public class StreamingExcelProcessor {
 
@@ -30,33 +33,55 @@ public class StreamingExcelProcessor {
     private long processedRowCount = 0;
     private long ticksDetected = 0;
     private long rowsWritten = 0;
+    private Consumer<String> logger;
 
-    public String normalize(File inputFile, File outputFile) throws Exception {
+    public void processFile(File inputFile, File outputFile, String sheetName, Consumer<String> logger) throws Exception {
+        this.logger = logger;
+        this.workbook = new SXSSFWorkbook(100);
+        this.sheet = workbook.createSheet("Normalized Data");
+
         OPCPackage pkg = OPCPackage.open(inputFile);
         XSSFReader reader = new XSSFReader(pkg);
         SharedStrings sharedStrings = reader.getSharedStringsTable();
         XMLReader parser = XMLReaderFactory.createXMLReader();
 
-        workbook = new SXSSFWorkbook(100);
-        sheet = workbook.createSheet("Normalized Data");
-
         ContentHandler handler = new SheetHandler(sharedStrings);
         parser.setContentHandler(handler);
 
-        try (InputStream sheetStream = reader.getSheetsData().next()) {
-            InputSource sheetSource = new InputSource(sheetStream);
-            parser.parse(sheetSource);
+        boolean sheetFound = false;
+        XSSFReader.SheetIterator sheets = (XSSFReader.SheetIterator) reader.getSheetsData();
+        while (sheets.hasNext()) {
+            try (InputStream sheetStream = sheets.next()) {
+                if (sheets.getSheetName().equals(sheetName)) {
+                    sheetFound = true;
+                    log("Processing sheet: " + sheetName);
+                    InputSource sheetSource = new InputSource(sheetStream);
+                    parser.parse(sheetSource);
+                    break;
+                }
+            }
         }
+
+        if (!sheetFound) {
+            workbook.close();
+            pkg.close();
+            throw new IllegalArgumentException("Sheet '" + sheetName + "' not found in the workbook.");
+        }
+
+        log(String.format("Processed %d rows, found %d non-empty cells, wrote %d rows to output.",
+                processedRowCount, ticksDetected, rowsWritten));
 
         try (FileOutputStream out = new FileOutputStream(outputFile)) {
             workbook.write(out);
         }
         workbook.dispose();
+        pkg.close();
+    }
 
-        return String.format(
-            "--- Normalization Complete ---\nRows Processed: %d\nNon-Empty Cells Found: %d\nOutput Rows Written: %d",
-            processedRowCount, ticksDetected, rowsWritten
-        );
+    private void log(String message) {
+        if (logger != null) {
+            logger.accept(message);
+        }
     }
 
     private class SheetHandler extends DefaultHandler {
