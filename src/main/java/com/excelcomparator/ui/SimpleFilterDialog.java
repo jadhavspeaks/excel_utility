@@ -1,4 +1,8 @@
-package com.excelcomparator;
+package com.excelcomparator.ui;
+
+import com.excelcomparator.logic.ExcelFilter;
+import com.excelcomparator.model.FilterCondition;
+import com.excelcomparator.util.ExcelUtil;
 
 import javax.swing.*;
 import java.awt.*;
@@ -15,17 +19,28 @@ public class SimpleFilterDialog extends JDialog {
     private JTextArea logArea;
     private JButton startButton;
     private JPanel conditionsPanel;
+    private JTable previewTable;
     private List<FilterConditionRow> conditionRows = new ArrayList<>();
 
 
     public SimpleFilterDialog(Frame owner) {
         super(owner, "Multi-Condition Filter", true);
-        setSize(800, 700);
+        setSize(800, 800);
         setLocationRelativeTo(owner);
         setLayout(new BorderLayout(10, 10));
 
         add(createConfigPanel(), BorderLayout.NORTH);
-        add(createLogPanel(), BorderLayout.CENTER);
+
+        previewTable = new JTable();
+        JScrollPane previewScrollPane = new JScrollPane(previewTable);
+        previewScrollPane.setBorder(BorderFactory.createTitledBorder("Preview (First 10 Rows)"));
+
+        JScrollPane logScrollPane = createLogPanel();
+
+        JSplitPane centerSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, previewScrollPane, logScrollPane);
+        centerSplitPane.setResizeWeight(0.5);
+        add(centerSplitPane, BorderLayout.CENTER);
+
         add(createButtonPanel(), BorderLayout.SOUTH);
     }
 
@@ -153,25 +168,46 @@ public class SimpleFilterDialog extends JDialog {
 
         int headerRows = (int) headerRowsSpinner.getValue();
 
-        SwingWorker<List<String>, Void> worker = new SwingWorker<>() {
+        class LoadResult {
+            ExcelUtil.ExcelData previewData;
+            List<String> headers;
+        }
+
+        SwingWorker<LoadResult, Void> worker = new SwingWorker<>() {
             @Override
-            protected List<String> doInBackground() throws Exception {
-                return ExcelUtil.getHeaders(inputFile, selectedSheet, headerRows);
+            protected LoadResult doInBackground() throws Exception {
+                LoadResult result = new LoadResult();
+                result.previewData = ExcelUtil.readExcel(inputFile, selectedSheet, headerRows, 10);
+                result.headers = result.previewData.getHeaders();
+                return result;
             }
 
             @Override
             protected void done() {
                 try {
-                    List<String> headers = get();
+                    LoadResult result = get();
                     for (FilterConditionRow row : conditionRows) {
-                        row.setColumnNames(headers);
+                        row.setColumnNames(result.headers);
                     }
+                    updatePreviewTable(result.previewData);
                 } catch (Exception e) {
-                    log("Error loading columns: " + e.getMessage());
+                    log("Error loading columns/preview: " + e.getMessage());
                 }
             }
         };
         worker.execute();
+    }
+
+    private void updatePreviewTable(ExcelUtil.ExcelData excelData) {
+        if (excelData == null) {
+            previewTable.setModel(new javax.swing.table.DefaultTableModel());
+            return;
+        }
+        javax.swing.table.DefaultTableModel model = new javax.swing.table.DefaultTableModel(
+            excelData.getData().stream().map(List::toArray).toArray(Object[][]::new),
+            excelData.getHeaders().toArray()
+        );
+        previewTable.setModel(model);
     }
 
     private void startFiltering() {

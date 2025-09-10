@@ -1,4 +1,8 @@
-package com.excelcomparator;
+package com.excelcomparator.logic;
+
+import com.excelcomparator.model.ComparisonResult;
+import com.excelcomparator.model.ComparisonSummary;
+import com.excelcomparator.util.ExcelUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -7,8 +11,21 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Contains the core logic for comparing two sets of Excel data.
+ */
 public class ComparatorLogic {
 
+    /**
+     * Compares two ExcelData objects based on specified key columns.
+     *
+     * @param data1       The first Excel data set.
+     * @param data2       The second Excel data set.
+     * @param keyColumns  A map where keys are key-column names from file 1 and values are corresponding key-column names from file 2.
+     * @param fullRow     If true, compares all columns; if false, only compares key columns.
+     * @param findMissing If true, identifies rows that are unique to each file.
+     * @return A ComparisonResult object containing the detailed results of the comparison.
+     */
     public static ComparisonResult compare(ExcelUtil.ExcelData data1, ExcelUtil.ExcelData data2, Map<String, String> keyColumns, boolean fullRow, boolean findMissing) {
         List<String> headers1 = data1.getHeaders();
         List<String> headers2 = data2.getHeaders();
@@ -85,6 +102,13 @@ public class ComparatorLogic {
         return new ComparisonResult(resultRows, commonHeaders, summary);
     }
 
+    /**
+     * Builds a composite key string from a row's data based on the specified key column indices.
+     *
+     * @param row        The list of objects representing a row.
+     * @param keyIndices The list of integer indices for the key columns.
+     * @return A single string representing the composite key.
+     */
     private static String buildKey(List<Object> row, List<Integer> keyIndices) {
         StringBuilder key = new StringBuilder();
         for (int index : keyIndices) {

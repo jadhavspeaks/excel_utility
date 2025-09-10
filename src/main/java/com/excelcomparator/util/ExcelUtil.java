@@ -1,5 +1,7 @@
-package com.excelcomparator;
+package com.excelcomparator.util;
 
+import com.excelcomparator.model.ComparisonResult;
+import com.excelcomparator.model.ComparisonSummary;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -12,6 +14,10 @@ import java.util.stream.Collectors;
 
 public class ExcelUtil {
 
+    /**
+     * A container for data read from an Excel sheet, including headers, data rows,
+     * and the original row numbers.
+     */
     public static class ExcelData {
         private final List<String> headers;
         private final List<List<Object>> data;
@@ -28,6 +34,13 @@ public class ExcelUtil {
         public List<Integer> getOriginalRowNumbers() { return originalRowNumbers; }
     }
 
+    /**
+     * Reads the names of all sheets from an Excel workbook.
+     *
+     * @param file The Excel file to read.
+     * @return A list of sheet names.
+     * @throws IOException If an error occurs while reading the file.
+     */
     public static List<String> getSheetNames(File file) throws IOException {
         List<String> sheetNames = new ArrayList<>();
         try (Workbook workbook = WorkbookFactory.create(file)) {
@@ -40,10 +53,27 @@ public class ExcelUtil {
         return sheetNames;
     }
 
+    /**
+     * Reads the headers from the first row of a specified sheet.
+     *
+     * @param file      The Excel file.
+     * @param sheetName The name of the sheet to read from.
+     * @return A list of header strings.
+     * @throws IOException If an error occurs during file reading.
+     */
     public static List<String> getHeaders(File file, String sheetName) throws IOException {
         return getHeaders(file, sheetName, 1);
     }
 
+    /**
+     * Reads headers from a specified number of rows, merging vertically stacked cells.
+     *
+     * @param file       The Excel file.
+     * @param sheetName  The name of the sheet to read from.
+     * @param headerRows The number of rows that constitute the header.
+     * @return A list of combined header strings.
+     * @throws IOException If an error occurs during file reading.
+     */
     public static List<String> getHeaders(File file, String sheetName, int headerRows) throws IOException {
         List<String> headers = new ArrayList<>();
         try (Workbook workbook = WorkbookFactory.create(file, null, true)) {
@@ -79,6 +109,16 @@ public class ExcelUtil {
         return headers;
     }
 
+    /**
+     * Reads the content of an Excel sheet into an ExcelData object.
+     *
+     * @param file       The Excel file to read.
+     * @param sheetName  The name of the sheet to read.
+     * @param headerRows The number of rows making up the header.
+     * @param numRows    The number of data rows to read (-1 for all rows).
+     * @return An ExcelData object containing the headers and data.
+     * @throws IOException If an error occurs while reading the file.
+     */
     public static ExcelData readExcel(File file, String sheetName, int headerRows, int numRows) throws IOException {
         List<String> headers = new ArrayList<>();
         List<List<Object>> data = new ArrayList<>();
@@ -127,6 +167,15 @@ public class ExcelUtil {
         return new ExcelData(headers, data, originalRowNumbers);
     }
 
+    /**
+     * Reads an Excel sheet and automatically normalizes (un-pivots) it if it detects a wide-format structure.
+     *
+     * @param file       The Excel file to read.
+     * @param sheetName  The name of the sheet to read.
+     * @param headerRows The number of rows making up the header.
+     * @return An ExcelData object containing the normalized data.
+     * @throws IOException If an error occurs during file reading.
+     */
     public static ExcelData readAndAutoNormalize(File file, String sheetName, int headerRows) throws IOException {
         ExcelData rawData = readExcel(file, sheetName, headerRows, -1);
         List<String> originalHeaders = rawData.getHeaders();
@@ -221,6 +270,15 @@ public class ExcelUtil {
         }
     }
 
+    /**
+     * Writes a detailed comparison result to a new Excel file.
+     *
+     * @param result The ComparisonResult object to write.
+     * @param data1  The original ExcelData from file 1, used for context.
+     * @param data2  The original ExcelData from file 2, used for context.
+     * @param file   The output file to write to.
+     * @throws IOException If an error occurs during file writing.
+     */
     public static void writeResultToExcel(ComparisonResult result, ExcelData data1, ExcelData data2, File file) throws IOException {
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Comparison Result");

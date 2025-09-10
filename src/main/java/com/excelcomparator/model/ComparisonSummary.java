@@ -1,10 +1,14 @@
-package com.excelcomparator;
+package com.excelcomparator.model;
 
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+/**
+ * Holds summary information about the comparison of two sets of headers.
+ * It calculates the total column counts, common columns, and columns unique to each file.
+ */
 public class ComparisonSummary {
     private final int file1ColumnCount;
     private final int file2ColumnCount;
@@ -12,6 +16,12 @@ public class ComparisonSummary {
     private final Set<String> columnsOnlyInFile1;
     private final Set<String> columnsOnlyInFile2;
 
+    /**
+     * Constructs a ComparisonSummary by analyzing two lists of headers.
+     *
+     * @param headers1 The list of headers from the first file.
+     * @param headers2 The list of headers from the second file.
+     */
     public ComparisonSummary(List<String> headers1, List<String> headers2) {
         this.file1ColumnCount = headers1.size();
         this.file2ColumnCount = headers2.size();

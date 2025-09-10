@@ -1,4 +1,4 @@
-package com.excelcomparator;
+package com.excelcomparator.logic;
 
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.xssf.eventusermodel.XSSFReader;

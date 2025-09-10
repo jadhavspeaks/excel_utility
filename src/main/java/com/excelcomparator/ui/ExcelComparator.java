@@ -1,4 +1,8 @@
-package com.excelcomparator;
+package com.excelcomparator.ui;
+
+import com.excelcomparator.logic.ComparatorLogic;
+import com.excelcomparator.model.ComparisonResult;
+import com.excelcomparator.util.ExcelUtil;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -74,7 +78,7 @@ public class ExcelComparator extends JFrame {
         });
         toolsMenu.add(simpleNormalizeItem);
 
-        JMenuItem simpleFilterItem = new JMenuItem("Simple Keyword Filter");
+        JMenuItem simpleFilterItem = new JMenuItem("Multi-Condition Filter");
         simpleFilterItem.addActionListener(e -> {
             SimpleFilterDialog dialog = new SimpleFilterDialog(this);
             dialog.setVisible(true);

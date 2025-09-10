@@ -1,4 +1,4 @@
-package com.excelcomparator;
+package com.excelcomparator.model;
 
 public class FilterCondition {
     private final String columnName;

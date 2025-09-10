@@ -1,5 +1,7 @@
-package com.excelcomparator;
+package com.excelcomparator.logic;
 
+import com.excelcomparator.model.FilterCondition;
+import com.excelcomparator.util.ExcelUtil;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -12,9 +14,26 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
 
+/**
+ * Provides the logic for filtering an Excel sheet based on multiple conditions.
+ * This class reads an input sheet and writes a new sheet containing only the rows that match all specified filter criteria.
+ * It uses a streaming workbook for the output to handle large result sets efficiently.
+ */
 public class ExcelFilter {
 
+    /**
+     * Processes an Excel file, filtering its content based on a list of conditions.
+     *
+     * @param inputFile  The input Excel file.
+     * @param outputFile The file to write the filtered output to.
+     * @param sheetName  The name of the sheet to filter.
+     * @param headerRows The number of header rows to skip.
+     * @param conditions A list of {@link FilterCondition} objects to apply.
+     * @param logger     A consumer for logging progress messages.
+     * @throws Exception if an error occurs during file processing.
+     */
     public void processFile(File inputFile, File outputFile, String sheetName, int headerRows, List<FilterCondition> conditions, Consumer<String> logger) throws Exception {
+        // Use a standard workbook for reading and a streaming workbook for writing to keep memory usage low for large outputs.
         try (InputStream inputStream = new FileInputStream(inputFile);
              Workbook workbook = new XSSFWorkbook(inputStream);
              SXSSFWorkbook sxssfWorkbook = new SXSSFWorkbook(100)) {

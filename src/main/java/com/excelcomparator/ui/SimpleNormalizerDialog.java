@@ -1,4 +1,7 @@
-package com.excelcomparator;
+package com.excelcomparator.ui;
+
+import com.excelcomparator.logic.StreamingExcelProcessor;
+import com.excelcomparator.util.ExcelUtil;
 
 import javax.swing.*;
 import java.awt.*;
@@ -13,10 +16,11 @@ public class SimpleNormalizerDialog extends JDialog {
     private JSpinner headerRowsSpinner;
     private JTextArea logArea;
     private JButton runButton;
+    private JTable previewTable;
 
     public SimpleNormalizerDialog(Frame owner) {
         super(owner, "Simple Normalizer Tool", true);
-        setSize(600, 400);
+        setSize(800, 600);
         setLocationRelativeTo(owner);
         setLayout(new BorderLayout(10, 10));
 
@@ -48,15 +52,26 @@ public class SimpleNormalizerDialog extends JDialog {
         mainPanel.add(new JLabel("Sheet to Normalize:"), gbc);
         sheetComboBox = new JComboBox<>();
         sheetComboBox.setEnabled(false);
+        sheetComboBox.addActionListener(e -> loadPreviewData());
+        headerRowsSpinner.addChangeListener(e -> loadPreviewData());
         gbc.gridx = 1; gbc.gridwidth = 2; mainPanel.add(sheetComboBox, gbc);
         gbc.gridwidth = 1;
 
         add(mainPanel, BorderLayout.NORTH);
 
+        previewTable = new JTable();
+        JScrollPane previewScrollPane = new JScrollPane(previewTable);
+        previewScrollPane.setBorder(BorderFactory.createTitledBorder("Preview (First 10 Rows)"));
+
         logArea = new JTextArea();
         logArea.setEditable(false);
         logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        add(new JScrollPane(logArea), BorderLayout.CENTER);
+        JScrollPane logScrollPane = new JScrollPane(logArea);
+        logScrollPane.setBorder(BorderFactory.createTitledBorder("Log"));
+
+        JSplitPane centerSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, previewScrollPane, logScrollPane);
+        centerSplitPane.setResizeWeight(0.6);
+        add(centerSplitPane, BorderLayout.CENTER);
 
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         runButton = new JButton("Run Normalization");
@@ -92,6 +107,9 @@ public class SimpleNormalizerDialog extends JDialog {
                     List<String> sheetNames = get();
                     sheetComboBox.setModel(new DefaultComboBoxModel<>(sheetNames.toArray(new String[0])));
                     sheetComboBox.setEnabled(true);
+                    if (!sheetNames.isEmpty()) {
+                        loadPreviewData();
+                    }
                 } catch (Exception e) {
                     sheetComboBox.setModel(new DefaultComboBoxModel<>(new String[]{"Error loading sheets"}));
                     JOptionPane.showMessageDialog(SimpleNormalizerDialog.this,
@@ -100,6 +118,44 @@ public class SimpleNormalizerDialog extends JDialog {
             }
         };
         worker.execute();
+    }
+
+    private void loadPreviewData() {
+        if (inputFile == null || sheetComboBox.getSelectedItem() == null) return;
+
+        String selectedSheet = (String) sheetComboBox.getSelectedItem();
+        int headerRows = (int) headerRowsSpinner.getValue();
+
+        SwingWorker<ExcelUtil.ExcelData, Void> worker = new SwingWorker<>() {
+            @Override
+            protected ExcelUtil.ExcelData doInBackground() throws Exception {
+                return ExcelUtil.readExcel(inputFile, selectedSheet, headerRows, 10);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ExcelUtil.ExcelData excelData = get();
+                    updatePreviewTable(excelData);
+                } catch (Exception e) {
+                    // Log error but don't show a popup, as it could be annoying
+                    log("Error loading preview: " + e.getMessage());
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private void updatePreviewTable(ExcelUtil.ExcelData excelData) {
+        if (excelData == null) {
+            previewTable.setModel(new javax.swing.table.DefaultTableModel());
+            return;
+        }
+        javax.swing.table.DefaultTableModel model = new javax.swing.table.DefaultTableModel(
+            excelData.getData().stream().map(List::toArray).toArray(Object[][]::new),
+            excelData.getHeaders().toArray()
+        );
+        previewTable.setModel(model);
     }
 
     private void runNormalization() {

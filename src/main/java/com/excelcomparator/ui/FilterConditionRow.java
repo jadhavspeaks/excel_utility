@@ -1,4 +1,4 @@
-package com.excelcomparator;
+package com.excelcomparator.ui;
 
 import javax.swing.*;
 import java.awt.*;
