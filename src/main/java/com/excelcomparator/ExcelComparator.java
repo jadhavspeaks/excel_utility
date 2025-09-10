@@ -73,7 +73,8 @@ public class ExcelComparator extends JFrame {
         });
         JMenuItem simpleNormalizeItem = new JMenuItem("Simple Normalizer");
         simpleNormalizeItem.addActionListener(e -> {
-            // Placeholder for future feature
+            SimpleNormalizerDialog dialog = new SimpleNormalizerDialog(this);
+            dialog.setVisible(true);
         });
         toolsMenu.add(simpleNormalizeItem);
         // toolsMenu.add(filterToolItem); // Add this back when ready

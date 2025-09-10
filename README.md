@@ -38,6 +38,10 @@ A powerful and easy-to-use desktop application built in Java Swing for comparing
 
 ## How to Use
 
+### Excel Comparator
+
+The main interface provides a powerful tool for comparing two Excel sheets.
+
 1.  **Load Files**: Click "Choose File..." for each file.
 2.  **Set Headers & Sheet**: Use the "Headers" spinner to specify the number of header rows and select the correct sheet from the dropdown.
 3.  **Use Normalization (Optional)**: If a file is in a wide format, check the "Enable Automated Normalization" box for that file to transform it before comparison.
@@ -48,3 +52,12 @@ A powerful and easy-to-use desktop application built in Java Swing for comparing
 6.  **Run Comparison**: Click the "Run Comparison" button.
 7.  **View & Export Results**: View the summary and detailed results in the UI, or click "Export to Excel" to save the report.
 8.  **Exit**: Click the "Exit" button to close the application.
+
+### Simple Normalizer Tool
+
+This tool can be accessed from the `Tools > Simple Normalizer` menu. It is designed to quickly transform a wide "tick-mark" style Excel sheet into a simple, long-format list.
+
+1.  **Select Input File**: Choose the Excel file you want to process.
+2.  **Specify Output File**: Choose the location and name for the new, normalized Excel file.
+3.  **Run Normalization**: Click the "Run Normalization" button.
+4.  **View Logs**: The text area will display the results, including the number of rows processed and new rows created. The output file will contain the normalized data.
