@@ -1,16 +1,9 @@
 package com.excelcomparator;
 
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class SimpleFilterDialog extends JDialog {
@@ -118,14 +111,7 @@ public class SimpleFilterDialog extends JDialog {
         SwingWorker<List<String>, Void> worker = new SwingWorker<>() {
             @Override
             protected List<String> doInBackground() throws Exception {
-                List<String> sheetNames = new ArrayList<>();
-                try (InputStream inputStream = new FileInputStream(inputFile);
-                     Workbook workbook = new XSSFWorkbook(inputStream)) {
-                    for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
-                        sheetNames.add(workbook.getSheetName(i));
-                    }
-                }
-                return sheetNames;
+                return ExcelUtil.getSheetNames(inputFile);
             }
 
             @Override

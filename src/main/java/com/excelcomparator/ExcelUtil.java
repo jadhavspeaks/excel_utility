@@ -206,7 +206,12 @@ public class ExcelUtil {
     private static Object getCellValueAsObject(Cell cell) {
         if (cell == null) return null;
         switch (cell.getCellType()) {
-            case STRING: return cell.getStringCellValue();
+            case STRING:
+                String s = cell.getStringCellValue();
+                if ("P".equals(s)) {
+                    return "✓";
+                }
+                return s;
             case NUMERIC:
                 if (DateUtil.isCellDateFormatted(cell)) return cell.getDateCellValue();
                 return cell.getNumericCellValue();

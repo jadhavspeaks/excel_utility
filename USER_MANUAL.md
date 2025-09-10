@@ -12,7 +12,7 @@ This manual provides detailed instructions on how to use the Excel Comparator Su
     - [Interpreting the Results](#interpreting-the-results)
     - [Exporting Results](#exporting-results)
 3.  [Tool: Simple Normalizer](#tool-simple-normalizer)
-4.  [Tool: Simple Keyword Filter](#tool-simple-keyword-filter)
+4.  [Tool: Multi-Condition Filter](#tool-multi-condition-filter)
 
 ---
 
@@ -89,22 +89,26 @@ This tool provides a quick way to convert a wide-format Excel sheet into a long-
 
 1.  Go to **Tools -> Simple Normalizer** in the menu bar.
 2.  **Choose Input File:** Select the Excel file you want to process.
-3.  **Select Sheet:** Choose the specific sheet you want to normalize from the dropdown.
-4.  Click **"Run Normalization"**.
-5.  You will be prompted to specify a location to save the output file.
-6.  **Output Format:** The tool takes the first column of your sheet as the **Key**. It then creates a new three-column table with the headers `Key | ColumnName | Value` for every other non-empty cell in the original sheet.
-7.  A log will show the progress and a summary of rows processed.
+3.  **Select Header Rows:** Specify the number of header rows in your file.
+4.  **Select Sheet:** Choose the specific sheet you want to normalize from the dropdown.
+5.  Click **"Run Normalization"**. The tool will automatically save a new file named `normalized_yourfile.xlsx` in the same directory.
+6.  A confirmation dialog will show the exact path where the file was saved.
+7.  **Output Format:** The tool takes the first column of your sheet as the **Key**. It then creates a new three-column table with the headers `Key | ColumnName | Value` for every other non-empty cell in the original sheet.
 
 ---
 
-## 4. Tool: Simple Keyword Filter
+## 4. Tool: Multi-Condition Filter
 
-This tool allows you to filter a large Excel sheet based on a list of keywords in a specific column.
+This tool allows you to filter a large Excel sheet based on one or more conditions.
 
-1.  Go to **Tools -> Simple Keyword Filter** in the menu bar.
-2.  **Choose Input File:** Select the Excel file you want to filter.
-3.  **Select Sheet:** Choose the sheet you want to filter.
-4.  **Select Key Column:** From the dropdown, select the column that contains the values you want to filter by.
-5.  **Enter Keywords:** In the text area, enter the list of keywords you want to find in the key column. Enter one keyword per line.
-6.  Click **"Start Filtering"**.
-7.  You will be prompted to specify a location to save the filtered output file. The output file will contain only the rows where the value in the key column matched one of your keywords.
+1.  Go to **Tools -> Simple Keyword Filter** in the menu bar (Note: will be renamed).
+2.  **Choose Input File**, **Select Header Rows**, and **Select Sheet**.
+3.  **Add Filter Conditions:**
+    -   The dialog starts with one empty condition row.
+    -   Select the **Column** you want to filter.
+    -   Select the **Operator** (e.g., `EQUALS`, `CONTAINS`).
+    -   Enter the **Value** you want to test against.
+    -   Click **"Add Condition"** to add more filter rows. All conditions are combined with `AND` (i.e., all must be true for a row to be included).
+    -   Click **"Remove"** on any row to delete it.
+4.  Click **"Start Filtering"**. The tool will automatically save a new file named `filtered_yourfile.xlsx` in the same directory.
+5.  A confirmation dialog will show the exact path where the file was saved.
