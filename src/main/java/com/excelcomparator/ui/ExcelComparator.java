@@ -355,6 +355,12 @@ public class ExcelComparator extends JFrame {
             model.addRow(rowData.toArray());
         }
         resultsTable.setModel(model);
+
+        // Apply the custom renderer to all columns
+        StatusCellRenderer renderer = new StatusCellRenderer();
+        for (int i = 0; i < resultsTable.getColumnCount(); i++) {
+            resultsTable.getColumnModel().getColumn(i).setCellRenderer(renderer);
+        }
     }
 
     private void exportResults() {

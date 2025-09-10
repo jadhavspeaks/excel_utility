@@ -15,6 +15,11 @@ public class ComparisonSummary {
     private final Set<String> commonColumns;
     private final Set<String> columnsOnlyInFile1;
     private final Set<String> columnsOnlyInFile2;
+    private long matchedRecords = 0;
+    private long mismatchedRecords = 0;
+    private long missingInFile1 = 0;
+    private long missingInFile2 = 0;
+
 
     /**
      * Constructs a ComparisonSummary by analyzing two lists of headers.
@@ -22,28 +27,18 @@ public class ComparisonSummary {
      * @param headers1 The list of headers from the first file.
      * @param headers2 The list of headers from the second file.
      */
-    public ComparisonSummary(List<String> headers1, List<String> headers2) {
-        this.file1ColumnCount = headers1.size();
-        this.file2ColumnCount = headers2.size();
-
-        Set<String> set1 = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        set1.addAll(headers1);
-
-        Set<String> set2 = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        set2.addAll(headers2);
-
-        this.commonColumns = set1.stream()
-                                .filter(set2::contains)
-                                .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
-
-        this.columnsOnlyInFile1 = set1.stream()
-                                     .filter(h -> !set2.contains(h))
-                                     .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
-
-        this.columnsOnlyInFile2 = set2.stream()
-                                     .filter(h -> !set1.contains(h))
-                                     .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
+    public ComparisonSummary(int f1Cols, int f2Cols, Set<String> common, Set<String> only1, Set<String> only2) {
+        this.file1ColumnCount = f1Cols;
+        this.file2ColumnCount = f2Cols;
+        this.commonColumns = common;
+        this.columnsOnlyInFile1 = only1;
+        this.columnsOnlyInFile2 = only2;
     }
+
+    public void setMatchedRecords(long matchedRecords) { this.matchedRecords = matchedRecords; }
+    public void setMismatchedRecords(long mismatchedRecords) { this.mismatchedRecords = mismatchedRecords; }
+    public void setMissingInFile1(long missingInFile1) { this.missingInFile1 = missingInFile1; }
+    public void setMissingInFile2(long missingInFile2) { this.missingInFile2 = missingInFile2; }
 
     public int getFile1ColumnCount() { return file1ColumnCount; }
     public int getFile2ColumnCount() { return file2ColumnCount; }
@@ -54,7 +49,12 @@ public class ComparisonSummary {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("--- Comparison Summary ---\n");
+        sb.append("--- Record Summary ---\n");
+        sb.append("Matched Records: ").append(matchedRecords).append("\n");
+        sb.append("Mismatched Records: ").append(mismatchedRecords).append("\n");
+        sb.append("Records Only in File 1: ").append(missingInFile2).append("\n");
+        sb.append("Records Only in File 2: ").append(missingInFile1).append("\n\n");
+        sb.append("--- Column Summary ---\n");
         sb.append("File 1 Total Columns: ").append(file1ColumnCount).append("\n");
         sb.append("File 2 Total Columns: ").append(file2ColumnCount).append("\n");
         sb.append("Common Columns (").append(commonColumns.size()).append("): ").append(String.join(", ", commonColumns)).append("\n");

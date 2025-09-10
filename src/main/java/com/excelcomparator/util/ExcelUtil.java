@@ -225,7 +225,8 @@ public class ExcelUtil {
             }
             for (int valueIndex : valueIndices) {
                 Object cellValue = valueIndex < row.size() ? row.get(valueIndex) : null;
-                if (cellValue != null && !cellValue.toString().trim().isEmpty()) {
+                // Only create a new row if the cell value is a checkmark.
+                if ("✓".equals(cellValue)) {
                     List<Object> newRow = new ArrayList<>(identifierValues);
                     newRow.add(originalHeaders.get(valueIndex));
                     newRow.add("Yes");
@@ -290,6 +291,18 @@ public class ExcelUtil {
             CellStyle boldStyle = workbook.createCellStyle();
             boldStyle.setFont(boldFont);
 
+            CellStyle matchStyle = workbook.createCellStyle();
+            matchStyle.setFillForegroundColor(IndexedColors.LIGHT_GREEN.getIndex());
+            matchStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            CellStyle mismatchStyle = workbook.createCellStyle();
+            mismatchStyle.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
+            mismatchStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            CellStyle missingStyle = workbook.createCellStyle();
+            missingStyle.setFillForegroundColor(IndexedColors.ROSE.getIndex());
+            missingStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
             Row r = sheet.createRow(rowNum++);
             r.createCell(0).setCellValue("Comparison Summary");
             r.getCell(0).setCellStyle(boldStyle);
@@ -326,6 +339,14 @@ public class ExcelUtil {
 
             for (ComparisonResult.ResultRow resultRow : result.getResultRows()) {
                 Row row = sheet.createRow(rowNum++);
+                CellStyle rowStyle = null;
+                switch (resultRow.getStatus()) {
+                    case MATCH: rowStyle = matchStyle; break;
+                    case MISMATCH: rowStyle = mismatchStyle; break;
+                    case MISSING_IN_FILE_1:
+                    case MISSING_IN_FILE_2: rowStyle = missingStyle; break;
+                }
+
                 int cellIdx = 0;
 
                 Cell r1Cell = row.createCell(cellIdx++);
@@ -346,6 +367,10 @@ public class ExcelUtil {
                     } else {
                         setCellValue(cell, val1);
                     }
+                }
+
+                for (int i = 0; i < cellIdx; i++) {
+                    row.getCell(i).setCellStyle(rowStyle);
                 }
             }
 

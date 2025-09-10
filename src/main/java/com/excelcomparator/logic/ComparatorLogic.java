@@ -53,7 +53,9 @@ public class ComparatorLogic {
              commonHeaders = commonHeaders.stream().distinct().collect(Collectors.toList());
         }
 
-        boolean[] row1Matched = new boolean[rows1.size()];
+        long matchedRecords = 0;
+        long mismatchedRecords = 0;
+        long missingInFile2 = 0;
 
         for (int i = 0; i < rows1.size(); i++) {
             List<Object> row1 = rows1.get(i);
@@ -79,18 +81,23 @@ public class ComparatorLogic {
                     }
                 }
 
-                resultRows.add(new ComparisonResult.ResultRow(
-                        mismatch ? ComparisonResult.RowStatus.MISMATCH : ComparisonResult.RowStatus.MATCH,
-                        row1, row2, mismatchedColumns, originalRowNum1, originalRowNum2));
-
-                row1Matched[i] = true;
+                if (mismatch) {
+                    mismatchedRecords++;
+                    resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MISMATCH, row1, row2, mismatchedColumns, originalRowNum1, originalRowNum2));
+                } else {
+                    matchedRecords++;
+                    resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MATCH, row1, row2, mismatchedColumns, originalRowNum1, originalRowNum2));
+                }
                 map2.remove(key1); // Remove from map to find extras in file 2 later
             } else if (findMissing) {
+                missingInFile2++;
                 resultRows.add(new ComparisonResult.ResultRow(ComparisonResult.RowStatus.MISSING_IN_FILE_2, row1, null, new ArrayList<>(), originalRowNum1, -1));
             }
         }
 
+        long missingInFile1 = 0;
         if (findMissing) {
+            missingInFile1 = map2.size();
             for (String key2 : map2.keySet()) {
                 List<Object> row2 = map2.get(key2);
                 int originalRowNum2 = rowNumMap2.get(key2);
@@ -98,7 +105,20 @@ public class ComparatorLogic {
             }
         }
 
-        ComparisonSummary summary = new ComparisonSummary(headers1, headers2);
+        java.util.Set<String> set1 = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        set1.addAll(headers1);
+        java.util.Set<String> set2 = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        set2.addAll(headers2);
+        java.util.Set<String> commonCols = set1.stream().filter(set2::contains).collect(Collectors.toCollection(() -> new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
+        java.util.Set<String> only1 = set1.stream().filter(h -> !set2.contains(h)).collect(Collectors.toCollection(() -> new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
+        java.util.Set<String> only2 = set2.stream().filter(h -> !set1.contains(h)).collect(Collectors.toCollection(() -> new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
+
+        ComparisonSummary summary = new ComparisonSummary(headers1.size(), headers2.size(), commonCols, only1, only2);
+        summary.setMatchedRecords(matchedRecords);
+        summary.setMismatchedRecords(mismatchedRecords);
+        summary.setMissingInFile1(missingInFile1);
+        summary.setMissingInFile2(missingInFile2);
+
         return new ComparisonResult(resultRows, commonHeaders, summary);
     }
 
